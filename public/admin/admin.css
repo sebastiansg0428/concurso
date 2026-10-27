@@ -1,0 +1,35 @@
+.admin-bar { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; align-items: center; text-align: left; padding: 1rem 1.25rem; }
+.admin-bar h1 { font-size: 1.3rem; margin: 0; }
+.admin-bar .btn.sec { margin-left: .5rem; }
+
+.tabs { display: flex; gap: .25rem; background: #fff; border-bottom: 1px solid var(--borde); overflow-x: auto; padding: 0 1rem; }
+.tabs button { background: none; border: 0; padding: .9rem 1rem; font-size: .95rem; cursor: pointer; color: var(--texto); border-bottom: 3px solid transparent; white-space: nowrap; }
+.tabs button.activo { border-color: var(--cafe); color: var(--cafe); font-weight: 600; }
+
+.fila { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.card { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 1rem; }
+.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; }
+.acciones { display: flex; gap: .5rem; margin-top: 1rem; }
+
+.barra { margin-bottom: 1rem; }
+.barra .info { display: flex; justify-content: space-between; margin-bottom: .25rem; }
+.barra .fondo { background: #eadfd4; border-radius: 6px; height: 22px; overflow: hidden; }
+.barra .relleno { background: var(--cafe); height: 100%; transition: width .4s; }
+.barra.lider .relleno { background: #c8892b; }
+
+#buscar { margin-bottom: 1rem; }
+.tabla-wrap { overflow-x: auto; margin-top: 1rem; }
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; font-size: .9rem; }
+th, td { text-align: left; padding: .6rem .7rem; border-bottom: 1px solid var(--borde); vertical-align: top; }
+th { background: #efe5da; }
+td .btn { margin: 0 .25rem .25rem 0; }
+.badge { padding: .1rem .5rem; border-radius: 999px; font-size: .8rem; }
+.badge.on { background: #e8f5e9; color: var(--ok); }
+.badge.off { background: #eee; color: #777; }
+
+#qr-img { display: block; margin: 1rem auto; background: #fff; border-radius: 8px; }
+
+@media print {
+  .admin-bar, .tabs, .tab:not(#tab-qr), #tab-qr .btn, #tab-qr .muted { display: none !important; }
+  #tab-qr { display: block !important; }
+}

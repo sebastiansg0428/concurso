@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Concurso de Cafés · Vota</title>
+    <link rel="icon" type="image/svg+xml" href="/img/logo-cafe.svg" />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <h1>☕ Concurso de bebidas de autor</h1>
+      <p>Elige tu bebida favorita y registra tu voto</p>
+    </header>
+
+    <main class="container">
+      <div id="ya-voto" class="alert info" hidden>
+        Ya registraste tu voto desde este dispositivo. ¡Gracias por participar!
+      </div>
+
+      <form id="form-voto" novalidate>
+        <section>
+          <h2>1. Selecciona tu bebida favorita</h2>
+          <div
+            id="lista-cafes"
+            class="cafes"
+            role="radiogroup"
+            aria-label="Cafés"
+          >
+            <p class="muted">Cargando cafés…</p>
+          </div>
+        </section>
+
+        <section>
+          <h2>2. Tus datos</h2>
+          <div class="campo">
+            <label for="nombre">Nombre completo</label>
+            <input
+              id="nombre"
+              name="nombre"
+              type="text"
+              maxlength="120"
+              autocomplete="name"
+              required
+            />
+          </div>
+          <div class="campo">
+            <label for="correo">Correo electrónico</label>
+            <input
+              id="correo"
+              name="correo"
+              type="email"
+              maxlength="160"
+              autocomplete="email"
+              required
+            />
+          </div>
+          <div class="campo">
+            <label for="telefono">Teléfono</label>
+            <input
+              id="telefono"
+              name="telefono"
+              type="tel"
+              maxlength="20"
+              autocomplete="tel"
+              required
+            />
+          </div>
+          <div class="campo">
+            <label for="ciudad">Ciudad</label>
+            <input
+              id="ciudad"
+              name="ciudad"
+              type="text"
+              maxlength="80"
+              autocomplete="address-level2"
+              required
+            />
+          </div>
+        </section>
+
+        <div id="mensaje" class="alert" hidden></div>
+        <button id="btn-votar" type="submit" class="btn">Votar</button>
+      </form>
+    </main>
+
+    <script src="/js/votar.js"></script>
+  </body>
+</html>
