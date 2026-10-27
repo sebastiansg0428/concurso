@@ -2,6 +2,7 @@ const lista = document.getElementById('lista-cafes');
 const form = document.getElementById('form-voto');
 const mensaje = document.getElementById('mensaje');
 const btn = document.getElementById('btn-votar');
+const seleccion = document.getElementById('seleccion-bebida');
 
 function mostrarMensaje(texto, tipo = 'error') {
   mensaje.textContent = texto;
@@ -28,16 +29,33 @@ async function cargarCafes() {
       input.name = 'cafeId';
       input.value = cafe.id;
       input.required = true;
+      input.setAttribute('aria-labelledby', `bebida-${cafe.id} establecimiento-${cafe.id}`);
+      input.setAttribute('aria-describedby', `frase-${cafe.id}`);
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          seleccion.textContent = `Tu elección: ${cafe.nombre} — ${cafe.establecimiento}`;
+        }
+      });
+
+      const detalle = document.createElement('img');
+      detalle.className = 'cafe-card-icon';
+      detalle.src = '/img/logo-cafe.svg';
+      detalle.alt = '';
+      detalle.width = 44;
+      detalle.height = 44;
 
       const h3 = document.createElement('h3');
+      h3.id = `bebida-${cafe.id}`;
       h3.textContent = cafe.nombre;
       const establecimiento = document.createElement('p');
+      establecimiento.id = `establecimiento-${cafe.id}`;
       establecimiento.className = 'establecimiento';
       establecimiento.textContent = cafe.establecimiento;
       const p = document.createElement('p');
+      p.id = `frase-${cafe.id}`;
       p.textContent = cafe.descripcion || '';
 
-      label.append(input, h3, establecimiento, p);
+      label.append(input, detalle, h3, establecimiento, p);
       lista.appendChild(label);
     }
   } catch {

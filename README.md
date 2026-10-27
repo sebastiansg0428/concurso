@@ -4,6 +4,8 @@ Aplicación web para que los asistentes escaneen un código QR, vean las bebidas
 
 Cada opción muestra la bebida como título, su establecimiento y su frase:
 
+Las tarjetas tienen un detalle de café y resaltan al seleccionarlas. Debajo aparece «Tu elección» con la bebida y su establecimiento; puedes cambiar de opción antes de votar. La selección por sí sola no registra el voto: debes completar los datos obligatorios y pulsar **Votar**. Las tarjetas admiten teclado y reducen sus efectos si el dispositivo tiene activada la preferencia de movimiento reducido.
+
 | Bebida | Establecimiento |
 |---|---|
 | Cold Brew de lulo. | Café Espíritu de Paz |

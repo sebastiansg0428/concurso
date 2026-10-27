@@ -34,30 +34,55 @@ body {
 
 h2 { font-size: 1.15rem; color: var(--cafe-osc); margin: 1.5rem 0 .75rem; }
 
-.cafes { display: grid; gap: .75rem; }
+.cafes { display: grid; gap: 1rem; }
 @media (min-width: 600px) { .cafes { grid-template-columns: 1fr 1fr; } }
 
 .cafe-card {
   position: relative;
   display: block;
-  background: #fff;
+  min-width: 0;
+  margin: 0;
+  background: linear-gradient(145deg, #fff, #fdfaf7);
   border: 2px solid var(--borde);
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 3px 10px rgba(74, 50, 36, .06);
   cursor: pointer;
-  transition: border-color .15s, box-shadow .15s;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
-.cafe-card input { position: absolute; opacity: 0; }
-.cafe-card h3 { margin: 0 1.5rem .25rem 0; font-size: 1.05rem; }
+.cafe-card input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.cafe-card-icon { display: block; margin-bottom: .75rem; }
+.cafe-card h3 { margin: 0 0 .4rem; font-size: 1.1rem; color: var(--cafe-osc); overflow-wrap: anywhere; }
 .cafe-card p { margin: 0; font-size: .9rem; color: #5d4d41; font-weight: 400; overflow-wrap: anywhere; }
 .cafe-card .establecimiento { margin-bottom: .5rem; font-weight: 600; color: var(--cafe); }
-.cafe-card:has(input:checked) { border-color: var(--cafe); box-shadow: 0 0 0 3px rgba(111, 78, 55, .2); }
-.cafe-card:has(input:checked)::after {
-  content: "✓"; position: absolute; top: .6rem; right: .8rem;
-  color: #fff; background: var(--cafe); border-radius: 50%;
+.cafe-card::after {
+  content: ""; position: absolute; top: 1.25rem; right: 1.25rem;
+  border: 2px solid var(--borde); border-radius: 50%;
   width: 1.5rem; height: 1.5rem; display: grid; place-items: center; font-size: .85rem;
 }
+.cafe-card:has(input:checked) {
+  border-color: var(--cafe);
+  background: linear-gradient(145deg, #fff, #f3e7d9);
+  box-shadow: 0 0 0 3px rgba(111, 78, 55, .15), 0 6px 16px rgba(74, 50, 36, .1);
+}
+.cafe-card:has(input:checked)::after { content: "✓"; color: #fff; background: var(--cafe); border-color: var(--cafe); }
 .cafe-card:has(input:focus-visible) { outline: 2px solid var(--cafe-osc); outline-offset: 2px; }
+.cafe-card:active { transform: scale(.99); }
+.seleccion-bebida {
+  padding: .8rem 1rem;
+  border-left: 3px solid var(--cafe);
+  border-radius: 0 8px 8px 0;
+  background: #efe5da;
+  color: var(--cafe-osc);
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cafe-card:hover { transform: translateY(-4px); border-color: var(--cafe); box-shadow: 0 8px 20px rgba(74, 50, 36, .14); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cafe-card { transition: none; }
+  .cafe-card:hover, .cafe-card:active { transform: none; }
+}
 
 .campo { margin-bottom: .9rem; }
 label { display: block; font-weight: 600; margin-bottom: .3rem; }
