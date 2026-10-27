@@ -16,7 +16,7 @@ async function cargarCafes() {
     const cafes = await res.json();
     lista.innerHTML = '';
     if (!cafes.length) {
-      lista.innerHTML = '<p class="muted">Aún no hay cafés disponibles.</p>';
+      lista.innerHTML = '<p class="muted">Aún no hay bebidas disponibles.</p>';
       return;
     }
     for (const cafe of cafes) {
@@ -31,14 +31,17 @@ async function cargarCafes() {
 
       const h3 = document.createElement('h3');
       h3.textContent = cafe.nombre;
+      const establecimiento = document.createElement('p');
+      establecimiento.className = 'establecimiento';
+      establecimiento.textContent = cafe.establecimiento;
       const p = document.createElement('p');
       p.textContent = cafe.descripcion || '';
 
-      label.append(input, h3, p);
+      label.append(input, h3, establecimiento, p);
       lista.appendChild(label);
     }
   } catch {
-    lista.innerHTML = '<p class="alert error">No se pudieron cargar los cafés. Recarga la página.</p>';
+    lista.innerHTML = '<p class="alert error">No se pudieron cargar las bebidas. Recarga la página.</p>';
   }
 }
 
@@ -47,7 +50,8 @@ function validar(datos) {
   if (datos.nombre.trim().length < 2) return 'Escribe tu nombre.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(datos.correo.trim())) return 'Escribe un correo válido.';
   if (!/^[0-9+\-\s()]{7,20}$/.test(datos.telefono.trim())) return 'Escribe un teléfono válido.';
-  if (datos.ciudad.trim().length < 2) return 'Escribe tu ciudad.';
+  const ciudad = datos.ciudad.trim();
+  if (ciudad && ciudad.length < 2) return 'Si escribes tu ciudad, usa al menos 2 caracteres.';
   return null;
 }
 

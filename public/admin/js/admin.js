@@ -46,13 +46,13 @@ async function cargarResultados() {
         'div',
         { className: 'barra' + (votos > 0 && votos === max ? ' lider' : '') },
         el('div', { className: 'info' },
-          el('strong', { textContent: c.nombre + (c.activo ? '' : ' (inactivo)') }),
+          el('strong', { textContent: `${c.nombre} — ${c.establecimiento}` + (c.activo ? '' : ' (inactivo)') }),
           el('span', { textContent: `${votos} · ${pct}%` })),
         el('div', { className: 'fondo' }, relleno)
       )
     );
   }
-  if (!cafes.length) cont.textContent = 'No hay cafés registrados.';
+  if (!cafes.length) cont.textContent = 'No hay bebidas registradas.';
 }
 document.getElementById('btn-refrescar').addEventListener('click', cargarResultados);
 
@@ -67,7 +67,7 @@ function pintarVotantes() {
   const tbody = document.getElementById('tabla-votantes');
   tbody.innerHTML = '';
   const filas = votantes.filter((v) =>
-    !q || [v.nombre, v.correo, v.ciudad, v.cafe, v.telefono].some((x) => String(x).toLowerCase().includes(q))
+    !q || [v.nombre, v.correo, v.ciudad, v.cafe, v.establecimiento, v.telefono].some((x) => String(x).toLowerCase().includes(q))
   );
   for (const v of filas) {
     tbody.append(
@@ -77,10 +77,11 @@ function pintarVotantes() {
         el('td', { textContent: v.correo }),
         el('td', { textContent: v.telefono }),
         el('td', { textContent: v.ciudad }),
-        el('td', { textContent: v.cafe }))
+        el('td', { textContent: v.cafe }),
+        el('td', { textContent: v.establecimiento }))
     );
   }
-  if (!filas.length) tbody.append(el('tr', {}, el('td', { colSpan: 6, textContent: 'Sin registros.' })));
+  if (!filas.length) tbody.append(el('tr', {}, el('td', { colSpan: 7, textContent: 'Sin registros.' })));
 }
 document.getElementById('buscar').addEventListener('input', pintarVotantes);
 
@@ -99,7 +100,7 @@ function resetForm() {
   formCafe.reset();
   document.getElementById('cafe-id').value = '';
   document.getElementById('cafe-activo').checked = true;
-  document.getElementById('titulo-form-cafe').textContent = 'Agregar café';
+  document.getElementById('titulo-form-cafe').textContent = 'Agregar bebida';
   document.getElementById('btn-cancelar').hidden = true;
 }
 document.getElementById('btn-cancelar').addEventListener('click', resetForm);
@@ -113,9 +114,10 @@ async function cargarCafes() {
     editar.onclick = () => {
       document.getElementById('cafe-id').value = c.id;
       document.getElementById('cafe-nombre').value = c.nombre;
+      document.getElementById('cafe-establecimiento').value = c.establecimiento;
       document.getElementById('cafe-descripcion').value = c.descripcion || '';
       document.getElementById('cafe-activo').checked = !!c.activo;
-      document.getElementById('titulo-form-cafe').textContent = 'Editar café';
+      document.getElementById('titulo-form-cafe').textContent = 'Editar bebida';
       document.getElementById('btn-cancelar').hidden = false;
       formCafe.scrollIntoView({ behavior: 'smooth' });
     };
@@ -124,7 +126,7 @@ async function cargarCafes() {
       if (!confirm(`¿Eliminar "${c.nombre}"?`)) return;
       try {
         await api('/cafes/' + c.id, { method: 'DELETE' });
-        aviso('Café eliminado');
+        aviso('Bebida eliminada');
         cargarCafes();
       } catch (err) {
         aviso(err.message, 'error');
@@ -133,6 +135,7 @@ async function cargarCafes() {
     tbody.append(
       el('tr', {},
         el('td', { textContent: c.nombre }),
+        el('td', { textContent: c.establecimiento }),
         el('td', { textContent: c.descripcion || '' }),
         el('td', {}, el('span', { className: 'badge ' + (c.activo ? 'on' : 'off'), textContent: c.activo ? 'Activo' : 'Inactivo' })),
         el('td', { textContent: c.votos }),
@@ -146,12 +149,13 @@ formCafe.addEventListener('submit', async (e) => {
   const id = document.getElementById('cafe-id').value;
   const body = JSON.stringify({
     nombre: document.getElementById('cafe-nombre').value,
+    establecimiento: document.getElementById('cafe-establecimiento').value,
     descripcion: document.getElementById('cafe-descripcion').value,
     activo: document.getElementById('cafe-activo').checked,
   });
   try {
     await api(id ? '/cafes/' + id : '/cafes', { method: id ? 'PUT' : 'POST', body });
-    aviso(id ? 'Café actualizado' : 'Café agregado');
+    aviso(id ? 'Bebida actualizada' : 'Bebida agregada');
     resetForm();
     cargarCafes();
   } catch (err) {

@@ -48,8 +48,9 @@ h2 { font-size: 1.15rem; color: var(--cafe-osc); margin: 1.5rem 0 .75rem; }
   transition: border-color .15s, box-shadow .15s;
 }
 .cafe-card input { position: absolute; opacity: 0; }
-.cafe-card h3 { margin: 0 0 .25rem; font-size: 1.05rem; }
-.cafe-card p { margin: 0; font-size: .9rem; color: #5d4d41; }
+.cafe-card h3 { margin: 0 1.5rem .25rem 0; font-size: 1.05rem; }
+.cafe-card p { margin: 0; font-size: .9rem; color: #5d4d41; font-weight: 400; overflow-wrap: anywhere; }
+.cafe-card .establecimiento { margin-bottom: .5rem; font-weight: 600; color: var(--cafe); }
 .cafe-card:has(input:checked) { border-color: var(--cafe); box-shadow: 0 0 0 3px rgba(111, 78, 55, .2); }
 .cafe-card:has(input:checked)::after {
   content: "✓"; position: absolute; top: .6rem; right: .8rem;

@@ -4,6 +4,7 @@ USE concurso_cafes;
 CREATE TABLE IF NOT EXISTS cafes (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(120) NOT NULL,
+  establecimiento VARCHAR(120) NOT NULL,
   descripcion TEXT,
   activo TINYINT(1) NOT NULL DEFAULT 1,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -34,11 +35,11 @@ CREATE TABLE IF NOT EXISTS admins (
   password_hash VARCHAR(100) NOT NULL
 ) ENGINE=InnoDB;
 
-INSERT INTO cafes (nombre, descripcion)
+INSERT INTO cafes (nombre, establecimiento, descripcion)
 SELECT * FROM (
-  SELECT 'Café Montaña', 'Notas a chocolate y panela, cuerpo medio.' UNION ALL
-  SELECT 'Café Volcán', 'Acidez brillante con notas cítricas y florales.' UNION ALL
-  SELECT 'Café Valle', 'Dulce, notas a caramelo y frutos rojos.' UNION ALL
-  SELECT 'Café Nevado', 'Suave y balanceado, final achocolatado.'
+  SELECT 'Cold Brew de lulo.', 'Café Espíritu de Paz', 'Una experiencia que conecta origen, cultura y comunidad.' UNION ALL
+  SELECT 'Brisa Mirandeña', 'Cafelado', 'El frescor de nuestra tierra, con alma de café.' UNION ALL
+  SELECT 'Café Paramo', 'Esmikafé', 'El equilibrio del café con un toque del dulzor natural de los frutos rojos y la sedosidad de la leche, la convierte en una bebida única, diferente, refrescante y muy deliciosa.' UNION ALL
+  SELECT 'MOMI, Mocaccino Mirandeño', 'Raíces de Miranda', 'Un sorbo de nuestra tierra, una experiencia para el alma.'
 ) AS seed
 WHERE NOT EXISTS (SELECT 1 FROM cafes);

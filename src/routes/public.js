@@ -21,7 +21,7 @@ function limpiar(v, max) {
 
 router.get('/cafes', async (req, res) => {
   const [rows] = await pool.query(
-    'SELECT id, nombre, descripcion FROM cafes WHERE activo = 1 ORDER BY nombre'
+    'SELECT id, nombre, establecimiento, descripcion FROM cafes WHERE activo = 1 ORDER BY nombre'
   );
   res.json(rows);
 });
@@ -38,7 +38,7 @@ router.post('/votos', votoLimiter, async (req, res) => {
   if (nombre.length < 2) errores.push('Nombre inválido');
   if (!EMAIL_RE.test(correo)) errores.push('Correo inválido');
   if (!PHONE_RE.test(telefono)) errores.push('Teléfono inválido');
-  if (ciudad.length < 2) errores.push('Ciudad inválida');
+  if (ciudad && ciudad.length < 2) errores.push('La ciudad debe tener al menos 2 caracteres');
   if (!Number.isInteger(cafeId) || cafeId <= 0) errores.push('Selecciona un café');
   if (errores.length) return res.status(400).json({ error: errores.join('. ') });
 

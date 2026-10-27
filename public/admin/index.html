@@ -17,7 +17,7 @@
   <nav class="tabs">
     <button data-tab="resultados" class="activo">Resultados</button>
     <button data-tab="votantes">Votantes</button>
-    <button data-tab="cafes">Cafés</button>
+    <button data-tab="cafes">Bebidas</button>
     <button data-tab="qr">Código QR</button>
   </nav>
 
@@ -35,25 +35,29 @@
         <h2>Votantes</h2>
         <a href="/admin/api/export.csv" class="btn sm">Exportar CSV</a>
       </div>
-      <input id="buscar" type="text" placeholder="Buscar por nombre, correo, ciudad o café…">
+      <input id="buscar" type="text" placeholder="Buscar por nombre, correo, ciudad, bebida o establecimiento…">
       <div class="tabla-wrap">
         <table>
-          <thead><tr><th>Fecha</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Ciudad</th><th>Café</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Ciudad</th><th>Bebida</th><th>Establecimiento</th></tr></thead>
           <tbody id="tabla-votantes"></tbody>
         </table>
       </div>
     </section>
 
     <section id="tab-cafes" class="tab" hidden>
-      <h2 id="titulo-form-cafe">Agregar café</h2>
+      <h2 id="titulo-form-cafe">Agregar bebida</h2>
       <form id="form-cafe" class="card">
         <input type="hidden" id="cafe-id">
         <div class="campo">
-          <label for="cafe-nombre">Nombre</label>
+          <label for="cafe-nombre">Nombre de la bebida</label>
           <input id="cafe-nombre" type="text" maxlength="120" required>
         </div>
         <div class="campo">
-          <label for="cafe-descripcion">Descripción</label>
+          <label for="cafe-establecimiento">Establecimiento</label>
+          <input id="cafe-establecimiento" type="text" minlength="2" maxlength="120" required>
+        </div>
+        <div class="campo">
+          <label for="cafe-descripcion">Frase</label>
           <textarea id="cafe-descripcion" rows="3" maxlength="1000"></textarea>
         </div>
         <label class="check"><input id="cafe-activo" type="checkbox" checked> Activo (visible para votar)</label>
@@ -65,7 +69,7 @@
       <div id="msg-cafes" class="alert" hidden></div>
       <div class="tabla-wrap">
         <table>
-          <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Votos</th><th></th></tr></thead>
+          <thead><tr><th>Bebida</th><th>Establecimiento</th><th>Frase</th><th>Estado</th><th>Votos</th><th></th></tr></thead>
           <tbody id="tabla-cafes"></tbody>
         </table>
       </div>

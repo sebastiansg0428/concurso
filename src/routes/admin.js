@@ -45,14 +45,15 @@ router.get('/me', (req, res) => res.json({ usuario: req.session.usuario }));
 
 function datosCafe(body) {
   const nombre = typeof body.nombre === 'string' ? body.nombre.trim().slice(0, 120) : '';
+  const establecimiento = typeof body.establecimiento === 'string' ? body.establecimiento.trim() : '';
   const descripcion = typeof body.descripcion === 'string' ? body.descripcion.trim().slice(0, 1000) : '';
   const activo = body.activo === false || body.activo === 0 ? 0 : 1;
-  return { nombre, descripcion, activo };
+  return { nombre, establecimiento, descripcion, activo };
 }
 
 router.get('/cafes', async (req, res) => {
   const [rows] = await pool.query(
-    `SELECT c.id, c.nombre, c.descripcion, c.activo, COUNT(v.id) AS votos
+    `SELECT c.id, c.nombre, c.establecimiento, c.descripcion, c.activo, COUNT(v.id) AS votos
      FROM cafes c LEFT JOIN votos v ON v.cafe_id = c.id
      GROUP BY c.id ORDER BY c.nombre`
   );
@@ -62,8 +63,12 @@ router.get('/cafes', async (req, res) => {
 router.post('/cafes', async (req, res) => {
   const c = datosCafe(req.body || {});
   if (c.nombre.length < 2) return res.status(400).json({ error: 'El nombre es obligatorio' });
-  const [r] = await pool.query('INSERT INTO cafes (nombre, descripcion, activo) VALUES (?, ?, ?)', [
+  if (c.establecimiento.length < 2 || c.establecimiento.length > 120) {
+    return res.status(400).json({ error: 'El establecimiento debe tener entre 2 y 120 caracteres' });
+  }
+  const [r] = await pool.query('INSERT INTO cafes (nombre, establecimiento, descripcion, activo) VALUES (?, ?, ?, ?)', [
     c.nombre,
+    c.establecimiento,
     c.descripcion,
     c.activo,
   ]);
@@ -74,8 +79,12 @@ router.put('/cafes/:id', async (req, res) => {
   const id = Number(req.params.id);
   const c = datosCafe(req.body || {});
   if (c.nombre.length < 2) return res.status(400).json({ error: 'El nombre es obligatorio' });
-  const [r] = await pool.query('UPDATE cafes SET nombre = ?, descripcion = ?, activo = ? WHERE id = ?', [
+  if (c.establecimiento.length < 2 || c.establecimiento.length > 120) {
+    return res.status(400).json({ error: 'El establecimiento debe tener entre 2 y 120 caracteres' });
+  }
+  const [r] = await pool.query('UPDATE cafes SET nombre = ?, establecimiento = ?, descripcion = ?, activo = ? WHERE id = ?', [
     c.nombre,
+    c.establecimiento,
     c.descripcion,
     c.activo,
     id,
@@ -100,7 +109,7 @@ router.delete('/cafes/:id', async (req, res) => {
 
 router.get('/resultados', async (req, res) => {
   const [rows] = await pool.query(
-    `SELECT c.id, c.nombre, c.activo, COUNT(v.id) AS votos
+    `SELECT c.id, c.nombre, c.establecimiento, c.activo, COUNT(v.id) AS votos
      FROM cafes c LEFT JOIN votos v ON v.cafe_id = c.id
      GROUP BY c.id ORDER BY votos DESC, c.nombre`
   );
@@ -108,9 +117,9 @@ router.get('/resultados', async (req, res) => {
   res.json({ total, cafes: rows });
 });
 
-const SQL_VOTANTES = `SELECT vt.id, vt.nombre, vt.correo, vt.telefono, vt.ciudad, c.nombre AS cafe, v.creado_en AS fecha
+const SQL_VOTANTES = `SELECT vt.id, vt.nombre, vt.correo, vt.telefono, vt.ciudad, c.nombre AS cafe, c.establecimiento, v.creado_en AS fecha
   FROM votantes vt JOIN votos v ON v.votante_id = vt.id JOIN cafes c ON c.id = v.cafe_id
-  ORDER BY v.creado_en DESC`;
+  ORDER BY v.creado_en DESC, v.id DESC`;
 
 const SQL_VOTANTES_CSV = `SELECT
   vt.id AS votante_id,
@@ -120,9 +129,10 @@ const SQL_VOTANTES_CSV = `SELECT
   vt.telefono,
   vt.ciudad,
   c.nombre AS cafe,
+  c.establecimiento,
   v.creado_en AS fecha
   FROM votantes vt JOIN votos v ON v.votante_id = vt.id JOIN cafes c ON c.id = v.cafe_id
-  ORDER BY v.creado_en ASC`;
+  ORDER BY v.creado_en ASC, v.id ASC`;
 
 router.get('/votantes', async (req, res) => {
   const [rows] = await pool.query(SQL_VOTANTES);
@@ -137,7 +147,7 @@ function csvCelda(valor) {
 
 router.get('/export.csv', async (req, res) => {
   const [rows] = await pool.query(SQL_VOTANTES_CSV);
-  const cols = ['votante_id', 'voto_id', 'nombre', 'correo', 'telefono', 'ciudad', 'cafe', 'fecha'];
+  const cols = ['votante_id', 'voto_id', 'nombre', 'correo', 'telefono', 'ciudad', 'cafe', 'establecimiento', 'fecha'];
   const lineas = [cols.join(';'), ...rows.map((r) => cols.map((c) => csvCelda(r[c])).join(';'))];
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="votantes.csv"');

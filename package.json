@@ -6,7 +6,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "create-admin": "node scripts/create-admin.js",
-    "init-db": "node scripts/init-db.js"
+    "init-db": "node scripts/init-db.js",
+    "replace-participants": "node scripts/replace-participants.js",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",

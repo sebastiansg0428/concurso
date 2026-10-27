@@ -1,6 +1,15 @@
 # ☕ Concurso de Cafés – Votación por QR
 
-Aplicación web para que los asistentes escaneen un código QR, vean el listado de cafés y voten por su favorito, registrando sus datos (nombre, correo, teléfono y ciudad). Cada correo solo puede votar una vez.
+Aplicación web para que los asistentes escaneen un código QR, vean las bebidas de autor y voten por su favorita. Nombre, correo y teléfono son obligatorios y se indican con un asterisco (*); ciudad es opcional. Si se informa ciudad, debe tener al menos dos caracteres después de quitar espacios externos. Si se deja vacía, se guarda como texto vacío y aparece en blanco en el panel y el CSV. Cada correo solo puede votar una vez.
+
+Cada opción muestra la bebida como título, su establecimiento y su frase:
+
+| Bebida | Establecimiento |
+|---|---|
+| Cold Brew de lulo. | Café Espíritu de Paz |
+| Brisa Mirandeña | Cafelado |
+| Café Paramo | Esmikafé |
+| MOMI, Mocaccino Mirandeño | Raíces de Miranda |
 
 **Tecnologías:** HTML, CSS, JavaScript, Node.js, Express y MySQL/MariaDB.
 
@@ -16,7 +25,7 @@ cp .env.example .env        # en Windows: copy .env.example .env
 Edita `.env` con tus datos de MySQL, un `SESSION_SECRET` largo y la clave del administrador (`ADMIN_PASS`).
 
 ```bash
-npm run init-db        # crea la base de datos, tablas y cafés de ejemplo (database/schema.sql)
+npm run init-db        # instalación nueva: tablas y cuatro participantes (database/schema.sql)
 npm run create-admin   # crea el admin con ADMIN_USER / ADMIN_PASS del .env
 npm run dev            # desarrollo (se reinicia solo) — o: npm start
 ```
@@ -24,12 +33,27 @@ También puedes importar `database/schema.sql` desde phpMyAdmin o MySQL Workbenc
 
 Para crear otro administrador: `npm run create-admin -- usuario claveSegura123`
 
+## Reemplazar los participantes de ejemplo de una instalación existente
+
+**Advertencia: este comando elimina TODOS los votos, votantes y participantes actuales de la base configurada en `.env`.** Úsalo solo cuando estos datos sean de prueba y antes de abrir el concurso. Conserva los administradores y agrega la columna `establecimiento` si falta.
+
+Detén el servidor antes del reemplazo para evitar nuevos votos durante el cambio:
+
+```bash
+npm run replace-participants -- --confirm-delete-test-data
+npm run dev
+```
+
+El reemplazo de datos se hace en una transacción. No se ejecuta al arrancar el servidor ni al correr `init-db`. Volver a ejecutar el comando de reemplazo vuelve a borrar los votos: **no lo uses durante el concurso**. `init-db` por sí solo no actualiza la estructura de tablas que ya existen.
+
+Si un navegador usado en las pruebas conserva el aviso de «ya votaste», abre su consola en la página de votación y ejecuta `localStorage.removeItem('cafes_voto')`, luego recarga. Esto solo quita la marca visual de ese navegador; la restricción real de votos está en MySQL.
+
 ## Uso
 - **Votación:** http://localhost:3000
 - **Panel admin:** http://localhost:3000/admin/
   - Resultados con porcentajes
-  - Listado de votantes con buscador y exportación a CSV (se abre en Excel, incluye `votante_id` y `voto_id` en orden cronológico)
-  - Gestión de cafés (agregar, editar, activar/desactivar, eliminar si no tienen votos)
+  - Listado de votantes con buscador y exportación a CSV (se abre en Excel, incluye `votante_id`, `voto_id`, bebida en la columna `cafe` y `establecimiento` en orden cronológico)
+  - Gestión de bebidas, establecimientos y frases (agregar, editar, activar/desactivar, eliminar si no tienen votos)
   - Código QR descargable/imprimible
 
 ## Probar desde el celular (misma red Wi-Fi)
@@ -54,3 +78,7 @@ public/                  Página de votación y panel admin
 - Un voto por correo (restricción `UNIQUE` en la BD y transacción al votar).
 - Validación de datos en el navegador y en el servidor; consultas parametrizadas.
 - Límite de intentos en votación y login; claves de admin cifradas con bcrypt.
+
+## Pruebas
+
+`npm test` comprueba instalación nueva, actualización de la estructura anterior, participantes, CRUD y flujo de votación/CSV. Requiere MySQL/MariaDB y permisos de crear/eliminar una base temporal de pruebas con las credenciales de `.env`; no borra los datos del concurso.

@@ -9,7 +9,7 @@
   </head>
   <body>
     <header class="hero">
-      <h1>☕ Concurso de bebidas de autor</h1>
+      <h1>☕Concurso "Bebidas con Alma y Origen"</h1>
       <p>Elige tu bebida favorita y registra tu voto</p>
     </header>
 
@@ -25,16 +25,17 @@
             id="lista-cafes"
             class="cafes"
             role="radiogroup"
-            aria-label="Cafés"
+            aria-label="Bebidas de autor"
           >
-            <p class="muted">Cargando cafés…</p>
+            <p class="muted">Cargando bebidas…</p>
           </div>
         </section>
 
         <section>
           <h2>2. Tus datos</h2>
+          <p>Los campos con * son obligatorios.</p>
           <div class="campo">
-            <label for="nombre">Nombre completo</label>
+            <label for="nombre">Nombre completo *</label>
             <input
               id="nombre"
               name="nombre"
@@ -45,7 +46,7 @@
             />
           </div>
           <div class="campo">
-            <label for="correo">Correo electrónico</label>
+            <label for="correo">Correo electrónico *</label>
             <input
               id="correo"
               name="correo"
@@ -56,7 +57,7 @@
             />
           </div>
           <div class="campo">
-            <label for="telefono">Teléfono</label>
+            <label for="telefono">Teléfono *</label>
             <input
               id="telefono"
               name="telefono"
@@ -67,14 +68,13 @@
             />
           </div>
           <div class="campo">
-            <label for="ciudad">Ciudad</label>
+            <label for="ciudad">Ciudad (opcional)</label>
             <input
               id="ciudad"
               name="ciudad"
               type="text"
               maxlength="80"
               autocomplete="address-level2"
-              required
             />
           </div>
         </section>
