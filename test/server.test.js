@@ -47,6 +47,11 @@ test('servidor conserva 400 y 413, oculta errores internos y rechaza secretos ig
   assert.throws(() => crearAplicacion({
     ...opciones, env: { ...entorno, VERIFICATION_SECRET: entorno.SESSION_SECRET },
   }), /independiente/);
+  for (const limite of ['0', 'abc', '-5', '1.5']) {
+    assert.throws(() => crearAplicacion({ ...opciones, env: { ...entorno, LIMITE_CORREOS_POR_DIA: limite } }),
+      /LIMITE_CORREOS_POR_DIA/);
+  }
+  assert.ok(crearAplicacion({ ...opciones, env: { ...entorno, LIMITE_CORREOS_POR_DIA: '450' } }));
   await servir(crearAplicacion(opciones), async (base) => {
     for (const [cuerpo, estado] of [['{', 400], [JSON.stringify({ valor: 'x'.repeat(21000) }), 413]]) {
       const respuesta = await fetch(base + '/api/verificacion', {
@@ -71,7 +76,7 @@ test('health permite sondeo HTTP interno, informa caída MySQL y no crea cookies
   } };
   const app = crearAplicacion({
     pool, rutasAdmin: express.Router(), logger,
-    env: { ...entorno, NODE_ENV: 'production', PUBLIC_URL: 'https://concurso.example' },
+    env: { ...entorno, NODE_ENV: 'production', PUBLIC_URL: 'https://concurso.example', PROXY_SALTOS_CONFIABLES: '1' },
   });
   await servir(app, async (base) => {
     let respuesta = await fetch(base + '/health');
@@ -125,6 +130,15 @@ test('cierre espera peticiones activas y cierra MySQL una sola vez', async () =>
     liberar();
     await servicio.cerrar();
   }
+});
+
+test('arranque explica cómo migrar si falta correo_canonico', async () => {
+  const pool = { query: async (sql) => {
+    if (String(sql).includes('correo_canonico')) throw Object.assign(new Error('x'), { code: 'ER_BAD_FIELD_ERROR' });
+    return [[]];
+  } };
+  await assert.rejects(iniciar({ pool, rutasAdmin: express.Router(), env: entorno, logger }),
+    /npm run migrate-correo-canonico -- --confirmar-respaldo/);
 });
 
 test('migración de participantes no borra datos y es repetible', async () => {

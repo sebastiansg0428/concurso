@@ -12,6 +12,7 @@
     "init-db": "node scripts/init-db.js",
     "migrate-security": "node scripts/migrate-security.js",
     "migrate-participants": "node scripts/migrate-participants.js",
+    "migrate-correo-canonico": "node scripts/migrate-correo-canonico.js",
     "replace-participants": "node scripts/replace-participants.js",
     "test": "node --test"
   },

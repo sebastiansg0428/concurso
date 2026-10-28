@@ -16,7 +16,19 @@ function configureSecurity(app, env = process.env) {
     }
     if (bits !== undefined && Number(bits) === 0) throw new Error('No confíes en todas las direcciones como proxy.');
   }
-  app.set('trust proxy', proxies.length ? proxies : false);
+  const textoSaltos = (env.PROXY_SALTOS_CONFIABLES || '').trim();
+  if (textoSaltos && !/^[1-3]$/.test(textoSaltos)) {
+    throw new Error('PROXY_SALTOS_CONFIABLES debe ser un número entero entre 1 y 3.');
+  }
+  if (textoSaltos && proxies.length) {
+    throw new Error('Configura TRUSTED_PROXIES o PROXY_SALTOS_CONFIABLES, no ambas.');
+  }
+  if (production && !textoSaltos && !proxies.length) {
+    throw new Error('Producción requiere PROXY_SALTOS_CONFIABLES (por ejemplo 1 en Railway) o TRUSTED_PROXIES.');
+  }
+  // Con saltos, Express confía solo en los N saltos más cercanos y toma la IP del cliente
+  // desde el extremo derecho de X-Forwarded-For, que añade el proxy de la plataforma.
+  app.set('trust proxy', textoSaltos ? Number(textoSaltos) : (proxies.length ? proxies : false));
   if (production) {
     let url;
     try { url = new URL(env.PUBLIC_URL); } catch { throw new Error('PUBLIC_URL debe ser una URL HTTPS válida.'); }

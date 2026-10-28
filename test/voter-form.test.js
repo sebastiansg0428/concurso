@@ -54,6 +54,12 @@ test('validación del navegador: ciudad opcional y otros datos obligatorios', as
     assert.equal(typeof validar({ ...valid, [field]: '   ' }), 'string');
   }
   assert.equal(typeof validar({ ...valid, correo: 'invalid' }), 'string');
+  for (const correo of ['x<otro@example.com>', '"a b"@example.com', 'ana@example', 'ana @example.com', 'a@-example.com']) {
+    assert.equal(typeof validar({ ...valid, correo }), 'string', `rechaza ${correo}`);
+  }
+  for (const correo of ['ana.maria+voto@gmail.com', 'ANA@Sub.Example.co']) {
+    assert.equal(validar({ ...valid, correo }), null, `acepta ${correo}`);
+  }
   assert.equal(typeof validar({ ...valid, telefono: 'abc' }), 'string');
   assert.equal(typeof validar({ ...valid, cafeId: null }), 'string');
 });

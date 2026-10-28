@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { correoValido } = require('./correo');
 
 function createMailer(env = process.env) {
   if (!env.SMTP_USER || !env.SMTP_PASS) {
@@ -14,9 +15,11 @@ function createMailer(env = process.env) {
     socketTimeout: 15000,
   });
   return async (correo, code) => {
+    if (!correoValido(correo)) throw new Error('Destinatario no válido.');
     const result = await transport.sendMail({
       from: env.SMTP_USER,
-      to: correo,
+      // Objeto de dirección: Nodemailer no vuelve a interpretar el texto como lista de destinatarios.
+      to: { name: '', address: correo.trim() },
       subject: 'Confirma tu voto — Bebidas con Alma y Origen',
       text: `Tu código de verificación es ${code}. Es válido por 10 minutos y admite 5 intentos. No compartas este código. Si no solicitaste votar, ignora este correo.`,
     });

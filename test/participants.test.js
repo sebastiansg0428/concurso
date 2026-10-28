@@ -41,7 +41,15 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
       const [rows] = await connection.query('SELECT nombre, establecimiento, descripcion FROM cafes ORDER BY nombre');
       return rows.map((r) => [r.nombre, r.establecimiento, r.descripcion]);
     };
+    const leerIdentificadores = async () => {
+      const [rows] = await connection.query('SELECT id, nombre FROM cafes ORDER BY id');
+      return rows.map((r) => [r.id, r.nombre]);
+    };
+    const identificadoresEsperados = [
+      [1, 'Cold Brew de lulo.'], [2, 'Brisa Mirandeña'], [3, 'Café Paramo'], [4, 'MOMI, Mocaccino Mirandeño'],
+    ];
     assert.deepEqual(await readParticipants(), expected);
+    assert.deepEqual(await leerIdentificadores(), identificadoresEsperados, 'instalación nueva usa ID 1-4');
     await connection.query(schema);
     assert.deepEqual(await readParticipants(), expected, 'init-db no duplica participantes');
 
@@ -49,6 +57,7 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     await connection.query('INSERT INTO admins (usuario, password_hash) VALUES (?, ?)', ['test-admin', passwordHash]);
     await connection.query("UPDATE cafes SET nombre = CONCAT('Ejemplo ', id)");
     await connection.query('ALTER TABLE cafes DROP COLUMN establecimiento');
+    await connection.query('ALTER TABLE votantes DROP INDEX uq_votantes_correo_canonico, DROP COLUMN correo_canonico');
     await connection.query(
       'INSERT INTO votantes (nombre, correo, telefono, ciudad) VALUES (?, ?, ?, ?)',
       ['Prueba', 'old@example.com', '3001234567', 'Miranda']
@@ -87,10 +96,37 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
         assert.deepEqual(registros, registrosPrevios[tabla], `migración repetible conserva todos los datos de ${tabla}`);
       }
     }
+
+    const migrarCorreo = (...extra) => spawnSync(process.execPath, ['scripts\\migrate-correo-canonico.js', ...extra], { cwd: root, env });
+    assert.equal(migrarCorreo().status, 1, 'migración de correo exige respaldo confirmado');
+    await connection.query(
+      'INSERT INTO votantes (nombre, correo, telefono, ciudad) VALUES (?, ?, ?, ?), (?, ?, ?, ?)',
+      ['Alias 1', 'Ana.Perez@gmail.com', '3001234567', '', 'Alias 2', 'anaperez+2@googlemail.com', '3001234567', '']
+    );
+    const conDuplicados = migrarCorreo('--confirmar-respaldo');
+    assert.equal(conDuplicados.status, 1, 'aborta si dos votantes comparten buzón');
+    assert.match(String(conDuplicados.stderr), /buzones con más de un voto/);
+    assert.equal((await connection.query("SHOW COLUMNS FROM votantes LIKE 'correo_canonico'"))[0].length, 0,
+      'con duplicados no modifica el esquema');
+    await connection.query("DELETE FROM votantes WHERE correo = 'anaperez+2@googlemail.com'");
+    const [votantesPrevios] = await connection.query('SELECT * FROM votantes ORDER BY id');
+    for (let intento = 0; intento < 2; intento++) {
+      execFileSync(process.execPath, ['scripts\\migrate-correo-canonico.js', '--confirmar-respaldo'], { cwd: root, env });
+      const [votantesDespues] = await connection.query('SELECT * FROM votantes ORDER BY id');
+      assert.deepEqual(votantesDespues.map((r) => r.correo_canonico), ['old@example.com', 'anaperez@gmail.com']);
+      assert.deepEqual(votantesDespues.map(({ correo_canonico, ...resto }) => resto), votantesPrevios,
+        'migración de correo repetible conserva los datos');
+    }
+    const [[columnaCanonica]] = await connection.query("SHOW COLUMNS FROM votantes LIKE 'correo_canonico'");
+    assert.equal(columnaCanonica.Null, 'NO');
+    const [indiceCanonico] = await connection.query("SHOW INDEX FROM votantes WHERE Key_name = 'uq_votantes_correo_canonico'");
+    assert.equal(indiceCanonico[0].Non_unique, 0);
+    await connection.query('DELETE FROM votantes WHERE id <> 1');
     execFileSync(process.execPath, [
       'scripts\\replace-participants.js', '--confirm-delete-test-data', '--confirmar-respaldo',
     ], { cwd: root, env });
     assert.deepEqual(await readParticipants(), expected);
+    assert.deepEqual(await leerIdentificadores(), identificadoresEsperados, 'el reemplazo reinicia los ID a 1-4');
     for (const table of ['votos', 'votantes']) {
       const [[row]] = await connection.query(`SELECT COUNT(*) AS total FROM ${table}`);
       assert.equal(row.total, 0);
@@ -276,6 +312,17 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     assert.deepEqual(concurrent.map((r) => r.status).sort(), [201, 400], 'solo un voto ante concurrencia');
     assert.equal((await confirm(sentCodes.get(email))).status, 400, 'no reutilizar código consumido');
     assert.equal((await (await request('/admin/api/resultados')).json()).total, 7);
+
+    const gmail = { ...voter, correo: 'Ana.Maria@gmail.com' };
+    assert.equal((await request('/api/votos', 'POST', await verify(gmail))).status, 201);
+    assert.equal((await request('/api/verificacion', 'POST', { correo: 'anamaria+otro@googlemail.com' })).status, 429,
+      'los alias comparten la espera de reenvío');
+    response = await request('/api/votos', 'POST', await verify({ ...voter, correo: 'anamaria+otro@googlemail.com' }));
+    assert.equal(response.status, 409, 'un alias de Gmail no permite votar de nuevo');
+    const [[guardado]] = await connection.query('SELECT correo, correo_canonico FROM votantes WHERE correo_canonico = ?', ['anamaria@gmail.com']);
+    assert.deepEqual({ ...guardado }, { correo: 'ana.maria@gmail.com', correo_canonico: 'anamaria@gmail.com' });
+    response = await request('/api/votos', 'POST', { ...voter, correo: 'x<otro@example.com>' });
+    assert.equal(response.status, 400, 'rechaza direcciones con nombre visible');
     smtpFailure = true;
     response = await request('/checks/verificacion', 'POST', { correo: 'smtp-fail@example.com' });
     assert.equal(response.status, 503, 'SMTP fallido no simula éxito');

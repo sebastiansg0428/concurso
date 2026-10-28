@@ -31,11 +31,16 @@ function crearAplicacion({ pool, rutasAdmin, enviarCodigo, env = process.env, lo
   app.use(express.json({ limit: '20kb' }));
   app.use(session({ ...sessionOptions, store: new MysqlSessionStore(pool) }));
 
+  const textoLimite = (env.LIMITE_CORREOS_POR_DIA || '').trim();
+  if (textoLimite && !/^[1-9]\d{0,4}$/.test(textoLimite)) {
+    throw new Error('LIMITE_CORREOS_POR_DIA debe ser un número entero positivo.');
+  }
   app.use('/api', publicRoutes({
     pool,
     secret: verificationSecret,
     sendCode: enviarCodigo || ((correo, code) => createMailer(env)(correo, code)),
     logger,
+    limiteCorreosPorDia: textoLimite ? Number(textoLimite) : 400,
   }));
   app.use('/admin/api', rutasAdmin);
   app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -56,6 +61,12 @@ async function iniciar({ pool, rutasAdmin, env = process.env, logger = console }
   const app = crearAplicacion({ pool, rutasAdmin, env, logger });
   await pool.query('SELECT sid FROM admin_sessions LIMIT 0');
   await pool.query('SELECT id FROM email_challenges LIMIT 0');
+  try {
+    await pool.query('SELECT correo_canonico FROM votantes LIMIT 0');
+  } catch (err) {
+    if (err.code !== 'ER_BAD_FIELD_ERROR') throw err;
+    throw new Error('Falta votantes.correo_canonico. Haz un respaldo y ejecuta: npm run migrate-correo-canonico -- --confirmar-respaldo');
+  }
   const limpiar = async () => {
     await pool.query('DELETE FROM email_challenges WHERE expires_at < ?', [Date.now() - 24 * 60 * 60 * 1000]);
     await pool.query('DELETE FROM admin_sessions WHERE expires_at < ?', [Date.now()]);

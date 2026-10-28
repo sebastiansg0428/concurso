@@ -24,14 +24,63 @@ test('configuración rechaza secretos, HTTPS y proxies inseguros', () => {
   assert.throws(() => configureSecurity(express(), { SESSION_SECRET: secret, TRUSTED_PROXIES: '1' }), /TRUSTED_PROXIES/);
   assert.throws(() => configureSecurity(express(), { SESSION_SECRET: secret, TRUSTED_PROXIES: '0.0.0.0/0' }), /todas/);
   assert.throws(() => configureSecurity(express(), {
-    SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'http://example.com',
+    SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'http://example.com', PROXY_SALTOS_CONFIABLES: '1',
   }), /HTTPS/);
+  for (const saltos of ['0', '4', 'true', '1.5', '-1', '1,2']) {
+    assert.throws(() => configureSecurity(express(), { SESSION_SECRET: secret, PROXY_SALTOS_CONFIABLES: saltos }),
+      /PROXY_SALTOS_CONFIABLES/, `rechaza ${saltos}`);
+  }
+  assert.throws(() => configureSecurity(express(), {
+    SESSION_SECRET: secret, PROXY_SALTOS_CONFIABLES: '1', TRUSTED_PROXIES: '127.0.0.1',
+  }), /no ambas/);
+  assert.throws(() => configureSecurity(express(), {
+    SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'https://example.com',
+  }), /Producción requiere PROXY_SALTOS_CONFIABLES/);
   assert.throws(() => createMailer({}), /SMTP_USER/);
+});
+
+test('producción exige HTTPS aunque haya proxy: petición directa sin X-Forwarded-Proto', async () => {
+  const app = express();
+  configureSecurity(app, {
+    SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'https://example.com', PROXY_SALTOS_CONFIABLES: '1',
+  });
+  app.get('/', (req, res) => res.send('ok'));
+  await serve(app, async (base) => {
+    assert.equal((await fetch(base)).status, 403);
+    assert.equal((await fetch(base, { headers: { 'X-Forwarded-Proto': 'http' } })).status, 403);
+  });
+});
+
+test('saltos de proxy: IP del cliente añadida por el proxy, no la falsificada por el visitante', async () => {
+  const app = express();
+  const options = configureSecurity(app, {
+    SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'https://example.com', PROXY_SALTOS_CONFIABLES: '1',
+  });
+  app.use(session(options));
+  app.use(rateLimit({ windowMs: 60000, limit: 1 }));
+  app.get('/', (req, res) => { req.session.adminId = 1; res.json({ ip: req.ip, segura: req.secure }); });
+  await serve(app, async (base) => {
+    // El visitante inventa una IP; el proxy añade la real al final.
+    const primera = await fetch(base, {
+      headers: { 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '198.51.100.7, 203.0.113.9' },
+    });
+    assert.equal(primera.status, 200);
+    assert.deepEqual(await primera.json(), { ip: '203.0.113.9', segura: true });
+    assert.match(primera.headers.get('set-cookie'), /;\s*Secure/);
+    const falsificada = await fetch(base, {
+      headers: { 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '198.51.100.8, 203.0.113.9' },
+    });
+    assert.equal(falsificada.status, 429, 'cambiar la IP inventada no evade el límite');
+    const otroCliente = await fetch(base, { headers: { 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '203.0.113.10' } });
+    assert.equal(otroCliente.status, 200, 'cada cliente real tiene su propio límite');
+  });
 });
 
 test('producción exige HTTPS sin confiar en cabeceras directas', async () => {
   const app = express();
-  configureSecurity(app, { SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'https://example.com' });
+  configureSecurity(app, {
+    SESSION_SECRET: secret, NODE_ENV: 'production', PUBLIC_URL: 'https://example.com', TRUSTED_PROXIES: '192.0.2.1',
+  });
   app.get('/', (req, res) => res.send('ok'));
   await serve(app, async (base) => {
     const response = await fetch(base, { headers: { 'X-Forwarded-Proto': 'https' } });

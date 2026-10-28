@@ -51,6 +51,8 @@ También puedes importar `database/schema.sql` desde phpMyAdmin o MySQL Workbenc
 
 Para crear otro administrador, configura `ADMIN_USER` y `ADMIN_PASS` en tu entorno protegido y ejecuta `npm run create-admin`. Evita contraseñas en argumentos de consola: pueden quedar en el historial o en la lista de procesos. No subas `.env` al repositorio.
 
+> **PowerShell en Windows:** `npm run comando -- --opción` puede perder las opciones, porque PowerShell elimina el `--` al ejecutar `npm.ps1`. En ese caso, el script responderá que falta la confirmación aunque la hayas escrito. Usa `npm.cmd` en lugar de `npm`, por ejemplo `npm.cmd run migrate-correo-canonico -- --confirmar-respaldo`, o ejecuta el script directamente: `node scripts\migrate-correo-canonico.js --confirmar-respaldo`. En CMD, Git Bash y la consola de Railway los comandos funcionan tal como aparecen.
+
 ## Migrar participantes sin borrar datos
 
 Si una instalación antigua no tiene la columna `establecimiento`, detén el servidor, verifica una copia de seguridad y ensaya la actualización en una base temporal representativa:
@@ -60,6 +62,16 @@ npm run migrate-participants -- --confirmar-respaldo
 ```
 
 La migración agrega únicamente esa columna y se puede repetir. Conserva IDs, votos, votantes y administradores; los establecimientos antiguos quedan vacíos hasta completarlos desde el panel. Las instalaciones nuevas ya incluyen la columna. MySQL confirma los cambios DDL de forma implícita: esta migración es un paso separado, nunca parte de la transacción que reemplaza datos.
+
+## Migrar el correo canónico (un voto por buzón)
+
+Las bases creadas antes de esta versión no tienen `votantes.correo_canonico` y el servidor no arranca hasta migrarlas. Detén el servidor, haz una copia de seguridad, ensaya en una base temporal y ejecuta:
+
+```powershell
+npm run migrate-correo-canonico -- --confirmar-respaldo
+```
+
+Agrega la columna, la rellena para los votantes existentes y crea el índice único `uq_votantes_correo_canonico`, sin borrar datos. Se puede repetir y completa estados parciales. Si dos votantes ya comparten buzón (por ejemplo `ana.perez@gmail.com` y `anaperez+2@gmail.com`), se detiene sin modificar nada e indica sus ID para revisarlos manualmente. Los códigos pendientes de alias anteriores a la migración dejan de valer: basta pedir uno nuevo.
 
 ## Reemplazar los participantes de ejemplo de una instalación existente
 
@@ -72,7 +84,7 @@ npm run replace-participants -- --confirm-delete-test-data --confirmar-respaldo
 npm run dev
 ```
 
-El reemplazo de datos se hace en una transacción. No se ejecuta al arrancar el servidor ni al correr `init-db`. Volver a ejecutar el comando de reemplazo vuelve a borrar los votos: **no lo uses durante el concurso**. `init-db` por sí solo no actualiza la estructura de tablas que ya existen.
+El reemplazo de datos se hace en una transacción. Los cuatro participantes vuelven a crearse con los ID 1 a 4, igual que en una instalación nueva. No se ejecuta al arrancar el servidor ni al correr `init-db`. Volver a ejecutar el comando de reemplazo vuelve a borrar los votos: **no lo uses durante el concurso**. `init-db` por sí solo no actualiza la estructura de tablas que ya existen.
 
 Si un navegador usado en las pruebas conserva el aviso de «ya votaste», abre su consola en la página de votación y ejecuta `localStorage.removeItem('cafes_voto')`, luego recarga. Esto solo quita la marca visual de ese navegador; la restricción real de votos está en MySQL.
 
@@ -139,6 +151,7 @@ La migración agrega `email_challenges` y `admin_sessions` sin borrar participan
    SMTP_PASS=tu-contrasena-de-aplicacion
    NODE_ENV=development
    TRUSTED_PROXIES=
+   PROXY_SALTOS_CONFIABLES=
    ```
 
 No uses tu contraseña habitual de Gmail, no compartas estos valores ni subas `.env`. El envío usa `smtp.gmail.com:465` con TLS. Gmail tiene cuotas de envío; verifica que sean suficientes para el evento.
@@ -156,7 +169,14 @@ Los códigos se almacenan como HMAC con secreto independiente, no como texto. Lo
 ### Publicación segura
 
 - En producción configurar `NODE_ENV=production` y `PUBLIC_URL=https://tu-dominio`. **Cambiar la variable no instala HTTPS:** el hosting/proxy debe tener un certificado válido y terminar TLS.
-- Configurar `TRUSTED_PROXIES` solo con las IP/CIDR reales del proxy, separadas por comas. Por defecto no se confía en ninguna cabecera reenviada. El proxy debe **sobrescribir** `X-Forwarded-For` y `X-Forwarded-Proto`; el puerto interno de Node no debe ser público. No usar `true`, `1` ni subredes de todo internet. Si tu hosting tiene proxies variables, definir la configuración con su documentación antes de publicar.
+- Configurar el proxy de confianza con **una** de estas variables (en producción es obligatorio; sin ella la app no arranca):
+  - `PROXY_SALTOS_CONFIABLES` (1–3): número de proxies delante de Node. Para plataformas sin IP fija como Railway usa `1`. Express toma la IP del cliente que añade el propio proxy (extremo derecho de `X-Forwarded-For`), así que un visitante no puede falsificarla.
+  - `TRUSTED_PROXIES`: IP/CIDR reales del proxy, separadas por comas, cuando son fijas. No usar `true`, `1` ni subredes de todo internet.
+  
+  El puerto interno de Node no debe ser público.
+- `LIMITE_CORREOS_POR_DIA` (por defecto 400) limita los códigos enviados en 24 horas por la instancia, aunque alguien rote direcciones IP; al alcanzarlo responde 503 para no agotar la cuota de Gmail. El contador está en memoria: se reinicia con la app y requiere una sola instancia.
+- Base MySQL de Railway: si es nueva, `npm run init-db` crea todas las tablas, incluida `votantes.correo_canonico`. Si ya existía, no basta con `init-db`. Antes de desplegar esta versión, haz una copia de seguridad, prueba en una base temporal y ejecuta una vez contra esa base, con sus variables de conexión, `npm run migrate-correo-canonico -- --confirmar-respaldo`. Si la base es anterior a `establecimiento` o a las tablas de seguridad, ejecuta antes `npm run migrate-participants -- --confirmar-respaldo` y `npm run migrate-security`. Sin esta migración, la app no arranca.
+- Un buzón vota una sola vez: se guarda `correo_canonico` (minúsculas, sin `+etiqueta` y, en Gmail, sin puntos) con índice único. El correo solo acepta direcciones simples (sin nombres ni `<...>`).
 - La app rechaza peticiones HTTP en producción y usa cookies `Secure`, `HttpOnly`, `SameSite=Lax` y HSTS. Localmente permite HTTP para pruebas por Wi-Fi.
 - Usa un usuario MySQL propio de la app con permisos mínimos sobre su base, no `root`. Ejecuta migraciones con una cuenta autorizada a crear tablas; el servidor solo necesita leer/escribir datos.
 - Cambia las contraseñas de prueba y usa una clave admin larga y única. Cambiar `ADMIN_PASS` en `.env` no actualiza la base hasta ejecutar `npm run create-admin`.
@@ -169,7 +189,7 @@ Los códigos se almacenan como HMAC con secreto independiente, no como texto. Lo
 3. Usa una base separada para staging y un usuario propio con permisos mínimos. Usa la red privada del proveedor entre app y MySQL; si la conexión cruza una red pública, valida/configura TLS de MySQL antes de publicar (esta app no lo activa automáticamente).
 4. Migra manualmente tras respaldo y ensayo, con un usuario autorizado a DDL. Comprueba el esquema antes de arrancar la app; el inicio nunca aplica migraciones.
 5. Configura el healthcheck como `GET /health`. Devuelve 200 si MySQL responde y 503 si falla o se está cerrando. Es la única ruta disponible por HTTP interno en producción, no crea sesiones ni expone diagnósticos; el resto exige HTTPS. El sondeo no prueba Gmail.
-6. Valida `TRUSTED_PROXIES` con la topología real de Railway, sin confiar en todo internet. Prueba que login produzca una cookie `Secure` y que la IP de los límites sea la del cliente, no la del proxy.
+6. Define `PROXY_SALTOS_CONFIABLES=1` (Railway no publica IP fijas de proxy). Prueba en staging que login produzca una cookie `Secure` y que la IP de los límites sea la del cliente, no la del proxy.
 7. El servidor maneja `SIGTERM`/`SIGINT`: deja de aceptar conexiones, espera las peticiones activas y cierra MySQL. Tiene un límite de 10 segundos; agotarlo registra error y termina con código no exitoso. Configura un período de terminación mayor en el hosting.
 8. Prueba en staging: catálogo, código real de Gmail, voto único, reintentos, login/logout, panel, CSV, QR e impresión. La CSP permite recursos propios y bloquea scripts inline y marcos externos.
 9. Mantén una instancia mientras los límites por IP sigan en memoria. Confirma copias recuperables, acceso restringido a CSV y monitoreo de errores/healthcheck.

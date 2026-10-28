@@ -133,7 +133,12 @@ async function cargarCafes() {
 function validar(datos) {
   if (!datos.cafeId) return 'Selecciona un café.';
   if (datos.nombre.trim().length < 2) return 'Escribe tu nombre.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(datos.correo.trim())) return 'Escribe un correo válido.';
+  const correo = datos.correo.trim();
+  // Misma regla que src/correo.js: solo direcciones simples, sin nombres ni "<...>".
+  if (correo.length > 160 ||
+    !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(correo)) {
+    return 'Escribe un correo válido.';
+  }
   if (!/^[0-9+\-\s()]{7,20}$/.test(datos.telefono.trim())) return 'Escribe un teléfono válido.';
   const ciudad = datos.ciudad.trim();
   if (ciudad && ciudad.length < 2) return 'Si escribes tu ciudad, usa al menos 2 caracteres.';
