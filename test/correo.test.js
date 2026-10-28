@@ -67,7 +67,7 @@ test('mailer usa la API HTTPS de Brevo cuando hay BREVO_API_KEY', async () => {
 });
 
 test('tope global diario de correos de verificación', async () => {
-  let reloj = 1_000_000;
+  let reloj = Date.parse('2026-11-05T12:00:00-05:00');
   const enviados = [];
   let fallar = false;
   const conexion = {

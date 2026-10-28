@@ -45,6 +45,9 @@ test('servidor conserva 400 y 413, oculta errores internos y rechaza secretos ig
   rutas.get('/fallo', () => { throw new Error('dato-confidencial'); });
   const opciones = { pool: { query: async () => [[]] }, rutasAdmin: rutas, env: entorno, logger };
   assert.throws(() => crearAplicacion({
+    ...opciones, env: { ...entorno, PRUEBAS_VOTACION_LOCAL: 'true' },
+  }), /solo se permite/);
+  assert.throws(() => crearAplicacion({
     ...opciones, env: { ...entorno, VERIFICATION_SECRET: entorno.SESSION_SECRET },
   }), /independiente/);
   for (const limite of ['0', 'abc', '-5', '1.5']) {

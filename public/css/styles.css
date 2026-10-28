@@ -32,6 +32,17 @@ body {
 .center { text-align: center; }
 .muted { color: #8a7a6d; }
 
+.contador-votacion {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  padding: 1rem;
+  text-align: center;
+}
+.contador-votacion h2 { margin-top: 0; }
+.contador-votacion [hidden] { display: none; }
+.tiempo-contador { font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
 h2 { font-size: 1.15rem; color: var(--cafe-osc); margin: 1.5rem 0 .75rem; }
 
 .cafes { display: grid; gap: 1rem; }

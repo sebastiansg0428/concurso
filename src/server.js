@@ -4,6 +4,7 @@ const session = require('express-session');
 const configureSecurity = require('./security');
 const MysqlSessionStore = require('./session-store');
 const createMailer = require('./mailer');
+const { crearHorarioVotacion } = require('./horario-votacion');
 
 const publicRoutes = require('./routes/public');
 
@@ -41,6 +42,7 @@ function crearAplicacion({ pool, rutasAdmin, enviarCodigo, env = process.env, lo
     sendCode: enviarCodigo || ((correo, code) => createMailer(env)(correo, code)),
     logger,
     limiteCorreosPorDia: textoLimite ? Number(textoLimite) : 400,
+    horario: crearHorarioVotacion(env),
   }));
   app.use('/admin/api', rutasAdmin);
   app.use(express.static(path.join(__dirname, '..', 'public')));

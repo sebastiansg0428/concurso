@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const { randomInt, randomBytes, createHmac, timingSafeEqual } = require('node:crypto');
 
 const { correoValido: esCorreoValido, normalizarCorreo, correoCanonico } = require('../correo');
+const { crearHorarioVotacion, mensajeHorario } = require('../horario-votacion');
 
 const PHONE_RE = /^[0-9+\-\s()]{7,20}$/;
 const DURATION = 10 * 60 * 1000;
@@ -13,7 +14,8 @@ function limpiar(value, max) {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, max) : '';
 }
 
-function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = console, limiteCorreosPorDia = 400 }) {
+function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = console,
+  limiteCorreosPorDia = 400, horario = crearHorarioVotacion() }) {
   if (!secret || secret.length < 32) throw new Error('Secreto de verificación inválido.');
   if (!Number.isInteger(limiteCorreosPorDia) || limiteCorreosPorDia < 1) {
     throw new Error('El límite de correos por día debe ser un entero positivo.');
@@ -44,6 +46,16 @@ function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = c
   const hash = (id, code) => createHmac('sha256', secret).update(`${id}:${code}`).digest('hex');
   const correoValido = (body) => esCorreoValido(body.correo);
 
+  router.get('/horario-votacion', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(horario(now()));
+  });
+  const comprobarHorario = (req, res, next) => {
+    const estado = horario(now());
+    if (!estado.permiteVotar) return res.status(403).json({ error: mensajeHorario(estado) });
+    next();
+  };
+
   router.get('/cafes', async (req, res) => {
     const [rows] = await pool.query(
       'SELECT id, nombre, establecimiento, descripcion FROM cafes WHERE activo = 1 ORDER BY nombre'
@@ -61,6 +73,11 @@ function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = c
       [id, clave, hash(id, 'unused'), currentTime, 0]
     );
     const [[challenge]] = await conn.query('SELECT * FROM email_challenges WHERE correo = ? FOR UPDATE', [clave]);
+    const estadoHorario = horario(now());
+    if (!estadoHorario.permiteVotar) {
+      await conn.rollback();
+      return { estado: 403, cuerpo: { error: mensajeHorario(estadoHorario) } };
+    }
     if (challenge.next_send_at > currentTime) {
       await conn.rollback();
       return { estado: 429, cuerpo: { error: 'Espera 60 segundos antes de solicitar otro código.' } };
@@ -104,7 +121,7 @@ function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = c
     return { estado: 200, cuerpo: { challengeId: id, expiresAt: active ? challenge.expires_at : currentTime + DURATION, resendAfter: 60 } };
   }
 
-  router.post('/verificacion', limiter(10), async (req, res) => {
+  router.post('/verificacion', comprobarHorario, limiter(10), async (req, res) => {
     const body = req.body || {};
     if (!correoValido(body)) return res.status(400).json({ error: 'Correo inválido' });
     const correo = normalizarCorreo(body.correo);
@@ -127,7 +144,7 @@ function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = c
     }
   });
 
-  router.post('/votos', limiter(40), async (req, res) => {
+  router.post('/votos', comprobarHorario, limiter(40), async (req, res) => {
     const body = req.body || {};
     const nombre = limpiar(body.nombre, 120);
     const correo = limpiar(body.correo, 160).toLowerCase();
@@ -167,12 +184,23 @@ function createPublicRoutes({ pool, sendCode, secret, now = Date.now, logger = c
         await conn.rollback();
         return res.status(400).json({ error: 'La bebida seleccionada no está disponible' });
       }
+      const estadoHorario = horario(now());
+      if (!estadoHorario.permiteVotar) {
+        await conn.rollback();
+        return res.status(403).json({ error: mensajeHorario(estadoHorario) });
+      }
       const [result] = await conn.query(
         'INSERT INTO votantes (nombre, correo, correo_canonico, telefono, ciudad, ip) VALUES (?, ?, ?, ?, ?, ?)',
         [nombre, correo, clave, telefono, ciudad, req.ip]
       );
       await conn.query('INSERT INTO votos (votante_id, cafe_id) VALUES (?, ?)', [result.insertId, cafeId]);
       await conn.query('UPDATE email_challenges SET consumed = 1 WHERE id = ?', [challenge.id]);
+      // Las escrituras tambien pueden esperar bloqueos: no confirmar si entretanto cerro el plazo.
+      const estadoAntesDeConfirmar = horario(now());
+      if (!estadoAntesDeConfirmar.permiteVotar) {
+        await conn.rollback();
+        return res.status(403).json({ error: mensajeHorario(estadoAntesDeConfirmar) });
+      }
       await conn.commit();
       res.status(201).json({ ok: true });
     } catch (err) {

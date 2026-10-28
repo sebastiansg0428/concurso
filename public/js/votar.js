@@ -15,6 +15,13 @@ let challengeId;
 let resendAt = 0;
 let resendTimer;
 let enviando = false;
+let solicitando = false;
+
+function actualizarPermisos() {
+  btn.disabled = solicitando || !contadorVotacion.permiteVotar;
+  btnConfirmar.disabled = enviando || !contadorVotacion.permiteVotar;
+  actualizarReenvio();
+}
 
 const fotosBebidas = [
   { nombre: 'Cold Brew de lulo', establecimiento: 'Café Espíritu de Paz', archivo: 'cold-brew-de-lulo.jpg' },
@@ -42,7 +49,7 @@ function mostrarCodigo(texto, tipo = 'error') {
 
 function actualizarReenvio() {
   const segundos = Math.max(0, Math.ceil((resendAt - Date.now()) / 1000));
-  btnReenviar.disabled = enviando || segundos > 0;
+  btnReenviar.disabled = enviando || segundos > 0 || !contadorVotacion.permiteVotar;
   btnReenviar.textContent = segundos ? `Reenviar en ${segundos}s` : 'Reenviar código';
   if (!segundos) clearInterval(resendTimer);
 }
@@ -147,6 +154,7 @@ function validar(datos) {
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (solicitando || !contadorVotacion.permiteVotar) return;
   mensaje.hidden = true;
   const fd = new FormData(form);
   const datos = {
@@ -159,7 +167,8 @@ form.addEventListener('submit', async (e) => {
   const error = validar(datos);
   if (error) return mostrarMensaje(error);
 
-  btn.disabled = true;
+  solicitando = true;
+  actualizarPermisos();
   btn.textContent = 'Enviando…';
   try {
     pendiente = { ...datos, correo: datos.correo.trim().toLowerCase() };
@@ -172,13 +181,14 @@ form.addEventListener('submit', async (e) => {
   } catch (err) {
     mostrarMensaje(err.message);
   }
-  btn.disabled = false;
+  solicitando = false;
+  actualizarPermisos();
   btn.textContent = 'Recibir código para votar';
 });
 
 formCodigo.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (enviando || !pendiente || !challengeId) return;
+  if (enviando || !pendiente || !challengeId || !contadorVotacion.permiteVotar) return;
   if (!/^\d{6}$/.test(inputCodigo.value)) return mostrarCodigo('Introduce los 6 dígitos del código.');
   enviando = true;
   btnConfirmar.disabled = true;
@@ -193,14 +203,14 @@ formCodigo.addEventListener('submit', async (event) => {
     mostrarCodigo(err.message);
   } finally {
     enviando = false;
-    btnConfirmar.disabled = false;
+    actualizarPermisos();
     btnCorregir.disabled = false;
     actualizarReenvio();
   }
 });
 
 btnReenviar.addEventListener('click', async () => {
-  if (enviando || Date.now() < resendAt) return;
+  if (enviando || Date.now() < resendAt || !contadorVotacion.permiteVotar) return;
   enviando = true;
   btnConfirmar.disabled = true;
   btnCorregir.disabled = true;
@@ -212,7 +222,7 @@ btnReenviar.addEventListener('click', async () => {
     mostrarCodigo(err.message);
   } finally {
     enviando = false;
-    btnConfirmar.disabled = false;
+    actualizarPermisos();
     btnCorregir.disabled = false;
     actualizarReenvio();
   }
@@ -234,3 +244,4 @@ try {
   console.warn('No se pudo leer la marca local del voto:', err.name);
 }
 cargarCafes();
+contadorVotacion.iniciar(actualizarPermisos);

@@ -14,6 +14,16 @@
     </header>
 
     <main class="container">
+      <section class="contador-votacion" aria-labelledby="titulo-contador">
+        <h2 id="titulo-contador" aria-live="polite" aria-atomic="true">Comprobando horario de votación…</h2>
+        <p id="tiempo-contador" class="tiempo-contador"></p>
+        <p id="periodo-votacion">Consultando fechas oficiales (hora de Colombia, UTC−5).</p>
+        <p id="ensayo-votacion" class="alert info" hidden>Ensayo temporal en Railway. No es la votación oficial. Los votos de prueba se guardan en la base real.</p>
+        <p id="aviso-horario" role="status" aria-live="polite"></p>
+        <p id="pruebas-votacion" class="alert info" hidden>Modo de pruebas local: puedes votar fuera del horario. Usa una base de datos local; los votos se guardan.</p>
+        <button id="reintentar-horario" type="button" class="btn sm sec" hidden>Reintentar consulta de horario</button>
+        <noscript>Activa JavaScript para consultar el horario y votar.</noscript>
+      </section>
       <div id="ya-voto" class="alert info" hidden>
         Ya registraste tu voto desde este dispositivo. ¡Gracias por participar!
       </div>
@@ -89,7 +99,7 @@
         </section>
 
         <div id="mensaje" class="alert" hidden></div>
-        <button id="btn-votar" type="submit" class="btn">Recibir código para votar</button>
+        <button id="btn-votar" type="submit" class="btn" disabled>Recibir código para votar</button>
       </form>
       <section id="verificacion" hidden aria-labelledby="titulo-verificacion">
         <h2 id="titulo-verificacion">3. Confirma tu correo y tu voto</h2>
@@ -101,16 +111,17 @@
             <input id="codigo" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code"
               pattern="[0-9]{6}" minlength="6" maxlength="6" required>
           </div>
-          <button id="btn-confirmar" type="submit" class="btn">Confirmar y registrar voto</button>
+          <button id="btn-confirmar" type="submit" class="btn" disabled>Confirmar y registrar voto</button>
         </form>
         <p id="mensaje-codigo" class="alert" role="status" hidden></p>
         <p>
-          <button id="btn-reenviar" type="button" class="btn sm sec">Reenviar código</button>
+          <button id="btn-reenviar" type="button" class="btn sm sec" disabled>Reenviar código</button>
           <button id="btn-corregir" type="button" class="btn sm sec">Volver a mis datos</button>
         </p>
       </section>
     </main>
 
+    <script src="/js/contador-votacion.js"></script>
     <script src="/js/votar.js"></script>
   </body>
 </html>

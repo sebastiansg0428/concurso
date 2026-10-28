@@ -185,6 +185,23 @@ Railway bloquea SMTP (puertos 25, 465 y 587) en los planes Free, Trial y Hobby, 
 
 Los remitentes `@gmail.com` sin dominio propio pueden llegar a spam; avisa a los votantes que revisen esa carpeta.
 
+### Horario y contador de votación
+
+El concurso abre el **1 de noviembre de 2026 a las 9:00 a. m.** y permite votar hasta el **14 de noviembre de 2026 a las 11:59 p. m.**, hora de Colombia (UTC−5). Incluye ese último minuto: se cierra al comenzar el 15 de noviembre. Las fechas se definen en `src/horario-votacion.js`.
+
+La página muestra una cuenta regresiva para la apertura y luego para el cierre, sincronizada con la hora del servidor mediante `GET /api/horario-votacion`. Fuera del plazo se conserva el catálogo, pero no se pueden solicitar códigos (ni reenviarlos) o confirmar votos, tampoco llamando directamente a la API. Un código pedido antes del cierre no permite votar después. El panel administrativo y el QR siguen disponibles.
+
+Para probar el flujo completo **en tu PC**, usa una base MySQL local o temporal y configura en tu `.env`:
+
+```dotenv
+NODE_ENV=development
+PRUEBAS_VOTACION_LOCAL=true
+```
+
+La página mostrará un aviso de pruebas y mantendrá el contador real. Se siguen exigiendo correo verificado y voto único por buzón; los votos se guardan en la base configurada. **Si apuntas a MySQL de Railway, serían datos reales.** No se borran registros automáticamente.
+
+La excepción está desactivada por defecto. Con otro entorno, incluido `production`, habilitarla impide arrancar; no añadas `PRUEBAS_VOTACION_LOCAL=true` en Railway. Para volver al horario normal local, usa `false` y reinicia el servidor. No cambies la hora del dispositivo para probar: el servidor decide si se puede votar.
+
 ### Cómo se registra un voto
 
 1. Seleccionar bebida y completar nombre, correo y teléfono (ciudad opcional).
@@ -203,7 +220,7 @@ Los códigos se almacenan como HMAC con secreto independiente, no como texto. Lo
   - `TRUSTED_PROXIES`: IP/CIDR reales del proxy, separadas por comas, cuando son fijas. No usar `true`, `1` ni subredes de todo internet.
   
   El puerto interno de Node no debe ser público.
-- `LIMITE_CORREOS_POR_DIA` (por defecto 400) limita los códigos enviados en 24 horas por la instancia, aunque alguien rote direcciones IP; al alcanzarlo responde 503 para no agotar la cuota de Gmail. El contador está en memoria: se reinicia con la app y requiere una sola instancia.
+- `LIMITE_CORREOS_POR_DIA` (por defecto 400) limita los códigos enviados en una ventana móvil de 24 horas por la instancia, aunque alguien rote direcciones IP; al alcanzarlo responde 503. Incluye reenvíos. Ajustarlo a la cuota real del proveedor: el valor predeterminado supera los 300 envíos diarios del plan gratuito de Brevo. El contador está en memoria: se reinicia con la app, requiere una sola instancia y no mide el saldo disponible en Brevo ni coincide necesariamente con su período de cuota.
 - Base MySQL de Railway: si es nueva, `npm run init-db` crea todas las tablas, incluida `votantes.correo_canonico`. Si ya existía, no basta con `init-db`. Antes de desplegar esta versión, haz una copia de seguridad, prueba en una base temporal y ejecuta una vez contra esa base, con sus variables de conexión, `npm run migrate-correo-canonico -- --confirmar-respaldo`. Si la base es anterior a `establecimiento` o a las tablas de seguridad, ejecuta antes `npm run migrate-participants -- --confirmar-respaldo` y `npm run migrate-security`. Sin esta migración, la app no arranca.
 - Un buzón vota una sola vez: se guarda `correo_canonico` (minúsculas, sin `+etiqueta` y, en Gmail, sin puntos) con índice único. El correo solo acepta direcciones simples (sin nombres ni `<...>`).
 - La app rechaza peticiones HTTP en producción y usa cookies `Secure`, `HttpOnly`, `SameSite=Lax` y HSTS. Localmente permite HTTP para pruebas por Wi-Fi.
@@ -217,11 +234,49 @@ Los códigos se almacenan como HMAC con secreto independiente, no como texto. Lo
 2. Define `NODE_ENV=production`, `PUBLIC_URL` HTTPS, secretos independientes, correo (en Railway Hobby, `BREVO_API_KEY` y `CORREO_REMITENTE`) y todas las variables MySQL. Faltar una credencial, usar `root` o un puerto inválido impide iniciar en producción. Los defaults de MySQL solo se conservan en desarrollo.
 3. Usa una base separada para staging y un usuario propio con permisos mínimos. Usa la red privada del proveedor entre app y MySQL; si la conexión cruza una red pública, valida/configura TLS de MySQL antes de publicar (esta app no lo activa automáticamente).
 4. Migra manualmente tras respaldo y ensayo, con un usuario autorizado a DDL. Comprueba el esquema antes de arrancar la app; el inicio nunca aplica migraciones.
-5. Configura el healthcheck como `GET /health`. Devuelve 200 si MySQL responde y 503 si falla o se está cerrando. Es la única ruta disponible por HTTP interno en producción, no crea sesiones ni expone diagnósticos; el resto exige HTTPS. El sondeo no prueba Gmail.
+5. Configura el healthcheck como `GET /health`. Devuelve 200 si MySQL responde y 503 si falla o se está cerrando. Es la única ruta disponible por HTTP interno en producción, no crea sesiones ni expone diagnósticos; el resto exige HTTPS. El sondeo no prueba el envío de correo.
 6. Define `PROXY_SALTOS_CONFIABLES=1` (Railway no publica IP fijas de proxy). Prueba en staging que login produzca una cookie `Secure` y que la IP de los límites sea la del cliente, no la del proxy.
 7. El servidor maneja `SIGTERM`/`SIGINT`: deja de aceptar conexiones, espera las peticiones activas y cierra MySQL. Tiene un límite de 10 segundos; agotarlo registra error y termina con código no exitoso. Configura un período de terminación mayor en el hosting.
 8. Prueba en staging: catálogo, código real de Gmail, voto único, reintentos, login/logout, panel, CSV, QR e impresión. La CSP permite recursos propios y bloquea scripts inline y marcos externos.
 9. Mantén una instancia mientras los límites por IP sigan en memoria. Confirma copias recuperables, acceso restringido a CSV y monitoreo de errores/healthcheck.
+
+### Preparación sin un entorno adicional de Railway
+
+Los ensayos locales reducen riesgos pero no equivalen a probar la apertura real en Railway. No se garantiza disponibilidad absoluta ni entrega de correo solo porque `/health` responda correctamente.
+
+**Antes del push:**
+
+1. Ejecuta las pruebas con MySQL local o desechable y revisa el diff. Las pruebas de horario usan un reloj simulado; no cambies el reloj del PC ni las fechas definitivas para publicar.
+2. Prueba en tu PC selección, código real, confirmación y rechazo de voto repetido; revisa panel y CSV. Usa tu base local, no MySQL de Railway. Prueba también desde el celular en la misma red.
+3. Comprueba el bloqueo local con `PRUEBAS_VOTACION_LOCAL=false` y reinicia; vuelve a `true` solo para pruebas en `development`. Confirma pérdida de conexión y recuperación con el botón de reintento.
+4. Revisa en Brevo la cuota vigente y el consumo de la cuenta. Para unos 200 códigos diarios y una cuota de 300, el margen nominal es de 100 envíos, incluidos otros usos de la cuenta. Los reenvíos y las pruebas también consumen. Si la cuenta es exclusiva del concurso y tiene esa cuota, puede acordarse un límite de 250 como protección, pero bloquearía solicitudes al alcanzarlo: no es garantía de capacidad ni un cambio automático.
+5. Define quién revisará consumo y errores del proveedor y qué hará si se acerca al límite; ampliar capacidad requiere decisión del organizador. No simules carga enviando cientos de correos reales.
+6. Prepara una copia de seguridad de producción y comprueba su recuperación en una base temporal antes de cualquier limpieza. Identifica los votos de prueba con el organizador: no los borres automáticamente ni uses scripts destructivos durante el despliegue.
+7. En Railway confirma `NODE_ENV=production`, `PRUEBAS_VOTACION_LOCAL` ausente o `false`, dominio HTTPS, una réplica y credenciales existentes de MySQL/Brevo. No copies el archivo `.env` local a producción.
+8. Comprueba que `.env` y los respaldos no estén incluidos en el commit. Autoriza explícitamente commit y push; si la rama está conectada al despliegue automático, un push puede publicar inmediatamente.
+
+**Después de una publicación autorizada:**
+
+1. Confirma en Railway el commit desplegado y su estado exitoso; un push por sí solo no confirma la publicación.
+2. Desde el dominio público consulta `/health` y `/api/horario-votacion`: antes de la apertura debe informar `fase: "pendiente"`, `pruebasLocales: false`, `permiteVotar: false` y las fechas definitivas. No hagas la prueba contra `localhost` por error.
+3. Comprueba contador y catálogo desde un celular con datos móviles. Verifica que solicitudes directas a `POST /api/verificacion` y `POST /api/votos` devuelvan 403 fuera del plazo, sin enviar códigos ni registrar votos.
+4. Revisa con el administrador login/logout, panel, CSV y QR. El QR debe abrir el dominio público, no la IP local.
+5. Antes de abrir revisa disponibilidad, recursos/facturación de Railway, cuota de Brevo y respaldos. Al abrir comprueba `fase: "abierta"` y realiza un voto legítimo, o una prueba acordada con el organizador y con tratamiento explícito de sus datos.
+
+**Si aparece un fallo:** conserva la referencia del despliegue anterior y revisa logs sin publicar secretos. Una restauración manual de la versión anterior puede recuperar la página, pero podría volver a permitir votos anticipados si esa versión no tenía el bloqueo; valora ese efecto antes de restaurar. No borres la base ni redespliegues repetidamente sin diagnóstico. Quitar el contador no resuelve una cuota de correo agotada.
+
+### Ensayo coordinado en la misma página de Railway
+
+Solo realizarlo antes de difundir el enlace o el QR, con autorización del organizador y respaldo previo. Durante la apertura temporal cualquiera con el enlace podrá votar. Los votos quedan en la base real y consumen la cuota de correo; identifica las cuentas de prueba y acuerda su tratamiento por separado. Mientras sus registros existan no podrán votar otra vez.
+
+1. Coordina la sesión con quien vaya a probar. En `src/horario-votacion.js`, el objeto `CALENDARIO` reúne `inicio`, `fin` (exclusivo) y `ensayo`. Prepara fechas temporales futuras con zona `-05:00` y `ensayo: true`, dejando margen para confirmar el despliegue antes de abrir. No habilites `PRUEBAS_VOTACION_LOCAL` en Railway.
+2. El endpoint de horario, las fechas visibles y los mensajes de rechazo usan ese mismo calendario. Con `ensayo: true` la página advierte que no es la votación oficial; la marca no omite las restricciones de horario.
+3. Ejecuta las pruebas; conserva las comprobaciones del calendario oficial y adapta las del calendario publicado cuando corresponda. Autoriza los cambios temporales y su restauración antes del push. Si el despliegue llega después de la apertura prevista, reprograma el ensayo.
+4. Comprueba bloqueo antes de abrir, apertura sin recargar, código recibido, voto registrado, panel/CSV y rechazo de duplicados. Después comprueba cierre y rechazo de un código pendiente.
+5. Restaura `inicio: Date.parse('2026-11-01T09:00:00-05:00')`, `fin: Date.parse('2026-11-15T00:00:00-05:00')` y `ensayo: false`. Ejecuta las pruebas y publica la restauración autorizada. Comprueba las fechas y `ensayo: false`, `pruebasLocales: false`, `fase: "pendiente"`, `permiteVotar: false` en el dominio público.
+6. No des por terminado el ensayo hasta verificar la restauración. Mantén el mismo dominio: el QR no cambia. Solo después de restaurar imprime y reparte el QR.
+
+La preparación del código por sí sola no acredita este ensayo: registra qué comprobaciones se hicieron realmente y cuáles faltan. No se crean servicios adicionales ni se borran votos automáticamente.
 
 ### Preparar la base MySQL de Railway desde tu PC
 

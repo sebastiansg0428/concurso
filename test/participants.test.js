@@ -136,7 +136,7 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
 
     process.env.DB_NAME = dbName;
     pool = require('../src/db');
-    let clock = Date.now();
+    let clock = Date.parse('2026-11-05T12:00:00-05:00');
     const sentCodes = new Map();
     const smtpLogs = [];
     let smtpFailure = false;

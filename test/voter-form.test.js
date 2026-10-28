@@ -10,6 +10,7 @@ test('almacenamiento bloqueado no impide cargar las bebidas', async () => {
   let solicitudes = 0;
   const avisos = [];
   const context = vm.createContext({
+    contadorVotacion: { permiteVotar: true, iniciar() {} },
     document: { getElementById: () => ({ addEventListener() {} }) },
     localStorage: { getItem() { throw new Error('bloqueado'); } },
     console: { warn: (...args) => avisos.push(args) },
@@ -38,6 +39,7 @@ test('formulario: asteriscos y atributos de campos obligatorios', () => {
 
 test('validación del navegador: ciudad opcional y otros datos obligatorios', async () => {
   const context = vm.createContext({
+    contadorVotacion: { permiteVotar: true, iniciar() {} },
     document: { getElementById: () => ({ addEventListener() {} }) },
     localStorage: { getItem: () => null },
     fetch: async () => ({ ok: true, json: async () => [] }),
@@ -98,6 +100,7 @@ test('tarjetas: contenido accesible y selección sin enviar el voto', async () =
   const requests = [];
   const avisos = [];
   const context = vm.createContext({
+    contadorVotacion: { permiteVotar: true, iniciar() {} },
     document: {
       getElementById: (id) => nodes[id],
       createElement: element,
@@ -186,6 +189,7 @@ test('formulario: solo confirma el voto después del código y muestra errores S
   let localMark = false;
   const location = {};
   const context = vm.createContext({
+    contadorVotacion: { permiteVotar: true, iniciar() {} },
     document: { getElementById: node },
     FormData: class { get(key) { return fields[key]; } },
     localStorage: { getItem: () => null, setItem: () => { localMark = true; } },
@@ -227,4 +231,66 @@ test('formulario: solo confirma el voto después del código y muestra errores S
   assert.equal(requests.at(-1).data.challengeId, 'a'.repeat(64));
   assert.equal(requests.at(-1).data.codigo, '123456');
   assert.equal(requests.at(-1).data.ciudad, '');
+});
+
+test('cierre mantiene botones bloqueados tras envios en curso y temporizador de reenvio', async () => {
+  const nodos = {};
+  const nodo = (id) => nodos[id] || (nodos[id] = {
+    hidden: false, value: '', eventos: {},
+    addEventListener(tipo, fn) { this.eventos[tipo] = fn; }, focus() {},
+  });
+  let alCambiar;
+  const horario = { permiteVotar: true, iniciar(fn) { alCambiar = fn; } };
+  const cambiar = (permite) => { horario.permiteVotar = permite; alCambiar(); };
+  let terminar;
+  let solicitudes = 0;
+  let temporizador;
+  const campos = { nombre: 'Ana', correo: 'ana@example.com', telefono: '3001234567', ciudad: '', cafeId: '1' };
+  const contexto = vm.createContext({
+    contadorVotacion: horario,
+    document: { getElementById: nodo },
+    FormData: class { get(clave) { return campos[clave]; } },
+    localStorage: { getItem: () => null }, location: {},
+    setInterval(fn) { temporizador = fn; return 1; }, clearInterval() {},
+    fetch: async (url, opciones) => {
+      if (!opciones) return { ok: true, json: async () => [] };
+      solicitudes++;
+      return new Promise((resolve) => {
+        terminar = () => resolve({
+          ok: url === '/api/verificacion',
+          json: async () => url === '/api/verificacion'
+            ? { challengeId: 'a'.repeat(64), resendAfter: 0 } : { error: 'Votación finalizada' },
+        });
+      });
+    },
+  });
+  vm.runInContext(readFileSync(path.join(publicDir, 'js', 'votar.js'), 'utf8'), contexto);
+  const evento = { preventDefault() {} };
+  const envio = nodo('form-voto').eventos.submit(evento);
+  cambiar(false);
+  terminar();
+  await envio;
+  assert.equal(nodo('btn-votar').disabled, true, 'finalizar solicitud no reabre boton');
+  temporizador();
+  assert.equal(nodo('btn-reenviar').disabled, true);
+  nodo('codigo').value = '123456';
+  await nodo('form-codigo').eventos.submit(evento);
+  await nodo('btn-reenviar').eventos.click();
+  assert.equal(solicitudes, 1, 'ningun evento envia solicitudes tras cierre');
+
+  cambiar(true);
+  const confirmacion = nodo('form-codigo').eventos.submit(evento);
+  cambiar(false);
+  terminar();
+  await confirmacion;
+  assert.equal(nodo('btn-confirmar').disabled, true, 'finally respeta cierre');
+  assert.equal(nodo('btn-reenviar').disabled, true);
+
+  cambiar(true);
+  const reenvio = nodo('btn-reenviar').eventos.click();
+  cambiar(false);
+  terminar();
+  await reenvio;
+  assert.equal(nodo('btn-confirmar').disabled, true);
+  assert.equal(nodo('btn-reenviar').disabled, true);
 });
