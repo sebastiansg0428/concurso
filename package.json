@@ -9,6 +9,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "create-admin": "node scripts/create-admin.js",
+    "crear-usuario-app": "node scripts/crear-usuario-app.js",
     "init-db": "node scripts/init-db.js",
     "migrate-security": "node scripts/migrate-security.js",
     "migrate-participants": "node scripts/migrate-participants.js",
