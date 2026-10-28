@@ -2,11 +2,16 @@
   "name": "concurso-cafes",
   "version": "1.0.0",
   "main": "src/server.js",
+  "engines": {
+    "node": "^22.0.0 || ^24.0.0"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "create-admin": "node scripts/create-admin.js",
     "init-db": "node scripts/init-db.js",
+    "migrate-security": "node scripts/migrate-security.js",
+    "migrate-participants": "node scripts/migrate-participants.js",
     "replace-participants": "node scripts/replace-participants.js",
     "test": "node --test"
   },
@@ -21,6 +26,7 @@
     "express-rate-limit": "^8.7.1",
     "express-session": "^1.19.0",
     "mysql2": "^3.24.6",
+    "nodemailer": "^10.2.1",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

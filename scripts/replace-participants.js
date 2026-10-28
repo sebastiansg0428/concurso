@@ -10,14 +10,15 @@ async function main() {
       'Para confirmar: npm run replace-participants -- --confirm-delete-test-data'
     );
   }
+  if (!process.argv.includes('--confirmar-respaldo')) {
+    throw new Error('Realiza y verifica una copia de seguridad; confirma con --confirmar-respaldo.');
+  }
 
   const conn = await pool.getConnection();
   try {
     const [columns] = await conn.query("SHOW COLUMNS FROM cafes LIKE 'establecimiento'");
     if (!columns.length) {
-      await conn.query(
-        "ALTER TABLE cafes ADD COLUMN establecimiento VARCHAR(120) NOT NULL DEFAULT '' AFTER nombre"
-      );
+      throw new Error('Falta establecimiento. Ejecuta primero npm run migrate-participants -- --confirmar-respaldo.');
     }
 
     const schema = fs.readFileSync(path.join(__dirname, '..', 'database', 'schema.sql'), 'utf8');
@@ -29,7 +30,7 @@ async function main() {
       await conn.query('DELETE FROM votos');
       await conn.query('DELETE FROM votantes');
       await conn.query('DELETE FROM cafes');
-      await conn.query(schema.slice(seedStart));
+      await conn.query(schema.slice(seedStart, schema.indexOf(';', seedStart) + 1));
       const [[{ total }]] = await conn.query('SELECT COUNT(*) AS total FROM cafes');
       if (total !== 4) throw new Error('Se esperaban exactamente cuatro participantes.');
       await conn.commit();

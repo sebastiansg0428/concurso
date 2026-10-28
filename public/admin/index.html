@@ -14,15 +14,16 @@
     <div><span id="usuario"></span> <button id="btn-salir" class="btn sm sec">Salir</button></div>
   </header>
 
-  <nav class="tabs">
-    <button data-tab="resultados" class="activo">Resultados</button>
-    <button data-tab="votantes">Votantes</button>
-    <button data-tab="cafes">Bebidas</button>
-    <button data-tab="qr">Código QR</button>
+  <nav class="tabs" role="tablist" aria-label="Panel del concurso">
+    <button id="pestana-resultados" data-tab="resultados" class="activo" role="tab" aria-selected="true" aria-controls="tab-resultados">Resultados</button>
+    <button id="pestana-votantes" data-tab="votantes" role="tab" aria-selected="false" aria-controls="tab-votantes" tabindex="-1">Votantes</button>
+    <button id="pestana-cafes" data-tab="cafes" role="tab" aria-selected="false" aria-controls="tab-cafes" tabindex="-1">Bebidas</button>
+    <button id="pestana-qr" data-tab="qr" role="tab" aria-selected="false" aria-controls="tab-qr" tabindex="-1">Código QR</button>
   </nav>
 
   <main class="container wide">
-    <section id="tab-resultados" class="tab">
+    <div id="mensaje-panel" class="alert error" role="alert" hidden></div>
+    <section id="tab-resultados" class="tab" role="tabpanel" aria-labelledby="pestana-resultados" tabindex="0">
       <div class="fila">
         <h2>Resultados <small id="total" class="muted"></small></h2>
         <button id="btn-refrescar" class="btn sm sec">Actualizar</button>
@@ -30,12 +31,13 @@
       <div id="resultados"></div>
     </section>
 
-    <section id="tab-votantes" class="tab" hidden>
+    <section id="tab-votantes" class="tab" role="tabpanel" aria-labelledby="pestana-votantes" tabindex="0" hidden>
       <div class="fila">
         <h2>Votantes</h2>
         <a href="/admin/api/export.csv" class="btn sm">Exportar CSV</a>
       </div>
-      <input id="buscar" type="text" placeholder="Buscar por nombre, correo, ciudad, bebida o establecimiento…">
+      <label for="buscar">Buscar votantes</label>
+      <input id="buscar" type="search" placeholder="Buscar por nombre, correo, ciudad, bebida o establecimiento…">
       <div class="tabla-wrap">
         <table>
           <thead><tr><th>Fecha</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Ciudad</th><th>Bebida</th><th>Establecimiento</th></tr></thead>
@@ -44,7 +46,7 @@
       </div>
     </section>
 
-    <section id="tab-cafes" class="tab" hidden>
+    <section id="tab-cafes" class="tab" role="tabpanel" aria-labelledby="pestana-cafes" tabindex="0" hidden>
       <h2 id="titulo-form-cafe">Agregar bebida</h2>
       <form id="form-cafe" class="card">
         <input type="hidden" id="cafe-id">
@@ -75,13 +77,13 @@
       </div>
     </section>
 
-    <section id="tab-qr" class="tab center" hidden>
+    <section id="tab-qr" class="tab center" role="tabpanel" aria-labelledby="pestana-qr" tabindex="0" hidden>
       <h2>Código QR para votar</h2>
       <p>Apunta a: <a id="qr-url" target="_blank" rel="noopener"></a></p>
       <img id="qr-img" alt="Código QR" width="300" height="300">
       <p class="muted">Para cambiar la dirección edita <code>PUBLIC_URL</code> en el archivo <code>.env</code> y reinicia el servidor.</p>
       <a href="/admin/api/qr?descargar=1" class="btn sm">Descargar PNG</a>
-      <button class="btn sm sec" onclick="window.print()">Imprimir</button>
+      <button id="btn-imprimir" class="btn sm sec">Imprimir</button>
     </section>
   </main>
 

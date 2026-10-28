@@ -6,10 +6,11 @@
   <title>Admin · Iniciar sesión</title>
   <link rel="icon" type="image/svg+xml" href="/img/logo-cafe.svg">
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
 </head>
 <body>
   <header class="hero"><h1>Panel de administración</h1></header>
-  <main class="container" style="max-width:420px">
+  <main class="container acceso">
     <form id="form-login">
       <div class="campo">
         <label for="usuario">Usuario</label>
@@ -19,28 +20,10 @@
         <label for="clave">Clave</label>
         <input id="clave" type="password" autocomplete="current-password" required>
       </div>
-      <div id="mensaje" class="alert error" hidden></div>
+      <div id="mensaje" class="alert error" role="alert" hidden></div>
       <button class="btn" type="submit">Ingresar</button>
     </form>
   </main>
-  <script>
-    document.getElementById('form-login').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const msg = document.getElementById('mensaje');
-      msg.hidden = true;
-      const res = await fetch('/admin/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          usuario: document.getElementById('usuario').value,
-          clave: document.getElementById('clave').value,
-        }),
-      });
-      if (res.ok) return (location.href = '/admin/');
-      const data = await res.json().catch(() => ({}));
-      msg.textContent = data.error || 'No se pudo iniciar sesión';
-      msg.hidden = false;
-    });
-  </script>
+  <script src="/admin/js/acceso.js"></script>
 </body>
 </html>

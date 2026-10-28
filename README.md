@@ -4,7 +4,7 @@ Aplicación web para que los asistentes escaneen un código QR, vean las bebidas
 
 Cada opción muestra la bebida como título, su establecimiento y su frase:
 
-Las tarjetas tienen un detalle de café y resaltan al seleccionarlas. Debajo aparece «Tu elección» con la bebida y su establecimiento; puedes cambiar de opción antes de votar. La selección por sí sola no registra el voto: debes completar los datos obligatorios y pulsar **Votar**. Las tarjetas admiten teclado y reducen sus efectos si el dispositivo tiene activada la preferencia de movimiento reducido.
+Las tarjetas muestran una foto de cada bebida y resaltan al seleccionarlas. Las fotos se muestran completas, sin recortar ni deformar, sobre fondo neutro. Debajo aparece «Tu elección» con la bebida y su establecimiento; puedes cambiar de opción antes de votar. La selección por sí sola no registra el voto: debes completar los datos, pulsar **Recibir código para votar** y confirmar el código recibido por correo. Las tarjetas admiten teclado y reducen sus efectos si el dispositivo tiene activada la preferencia de movimiento reducido.
 
 | Bebida | Establecimiento |
 |---|---|
@@ -15,8 +15,23 @@ Las tarjetas tienen un detalle de café y resaltan al seleccionarlas. Debajo apa
 
 **Tecnologías:** HTML, CSS, JavaScript, Node.js, Express y MySQL/MariaDB.
 
+## Fotos de las bebidas
+
+Las imágenes están en `public/img/bebidas/` y se publican junto con la aplicación, también en Railway:
+
+| Bebida | Archivo |
+|---|---|
+| Cold Brew de lulo. | `cold-brew-de-lulo.jpg` |
+| Brisa Mirandeña | `brisa-mirandena.jpg` |
+| Café Paramo | `cafe-paramo.jpg` |
+| MOMI, Mocaccino Mirandeño | `momi.jpg` |
+
+Para reemplazar una foto, guarda el nuevo JPG con el mismo nombre y vuelve a desplegar (en desarrollo, recarga la página). No hace falta modificar MySQL. Conviene optimizar el peso sin ampliar imágenes pequeñas.
+
+La asociación se define en `fotosBebidas` en `public/js/votar.js` usando el nombre de la bebida y su establecimiento, no su ID. Si editas esos nombres en el panel o agregas otra bebida, actualiza también esa lista y su archivo. Para Cold Brew se admite el nombre con o sin el punto final. Las bebidas sin foto configurada conservan el icono de taza; si una foto configurada falla al cargar, se muestra «Foto no disponible» y un aviso en la consola. No hay carga de imágenes desde el panel.
+
 ## Requisitos
-- Node.js 18 o superior
+- Node.js 22 o 24 (LTS); recomendado Node.js 24 para Railway. `engines` declara las versiones compatibles.
 - MySQL o MariaDB (por ejemplo XAMPP/WAMP) en ejecución
 
 ## Instalación
@@ -25,6 +40,7 @@ npm install
 cp .env.example .env        # en Windows: copy .env.example .env
 ```
 Edita `.env` con tus datos de MySQL, un `SESSION_SECRET` largo y la clave del administrador (`ADMIN_PASS`).
+Configura también `VERIFICATION_SECRET` y Gmail como se explica en la sección de seguridad. Sin Gmail configurado, la solicitud de códigos devolverá un error explícito; no se registran votos sin verificación.
 
 ```bash
 npm run init-db        # instalación nueva: tablas y cuatro participantes (database/schema.sql)
@@ -33,16 +49,26 @@ npm run dev            # desarrollo (se reinicia solo) — o: npm start
 ```
 También puedes importar `database/schema.sql` desde phpMyAdmin o MySQL Workbench.
 
-Para crear otro administrador: `npm run create-admin -- usuario claveSegura123`
+Para crear otro administrador, configura `ADMIN_USER` y `ADMIN_PASS` en tu entorno protegido y ejecuta `npm run create-admin`. Evita contraseñas en argumentos de consola: pueden quedar en el historial o en la lista de procesos. No subas `.env` al repositorio.
+
+## Migrar participantes sin borrar datos
+
+Si una instalación antigua no tiene la columna `establecimiento`, detén el servidor, verifica una copia de seguridad y ensaya la actualización en una base temporal representativa:
+
+```powershell
+npm run migrate-participants -- --confirmar-respaldo
+```
+
+La migración agrega únicamente esa columna y se puede repetir. Conserva IDs, votos, votantes y administradores; los establecimientos antiguos quedan vacíos hasta completarlos desde el panel. Las instalaciones nuevas ya incluyen la columna. MySQL confirma los cambios DDL de forma implícita: esta migración es un paso separado, nunca parte de la transacción que reemplaza datos.
 
 ## Reemplazar los participantes de ejemplo de una instalación existente
 
-**Advertencia: este comando elimina TODOS los votos, votantes y participantes actuales de la base configurada en `.env`.** Úsalo solo cuando estos datos sean de prueba y antes de abrir el concurso. Conserva los administradores y agrega la columna `establecimiento` si falta.
+**Advertencia: este comando elimina TODOS los votos, votantes y participantes actuales de la base configurada en `.env`.** Úsalo solo cuando estos datos sean de prueba y antes de abrir el concurso. Conserva los administradores y exige que el esquema ya esté actualizado; no ejecuta DDL.
 
-Detén el servidor antes del reemplazo para evitar nuevos votos durante el cambio:
+Detén el servidor antes del reemplazo para evitar nuevos votos durante el cambio. Verifica una copia de seguridad y ensaya primero en una base temporal:
 
 ```bash
-npm run replace-participants -- --confirm-delete-test-data
+npm run replace-participants -- --confirm-delete-test-data --confirmar-respaldo
 npm run dev
 ```
 
@@ -68,19 +94,96 @@ Al publicar en internet (VPS, Railway, Render…), cambia `PUBLIC_URL` por el do
 
 ## Estructura
 ```
-database/schema.sql      Esquema de la BD
-scripts/                 init-db.js y create-admin.js
-src/server.js            Servidor Express
-src/routes/public.js     GET /api/cafes, POST /api/votos
+database/                Esquema nuevo y SQL de migración de seguridad
+scripts/                 Inicialización, migraciones, admin y reemplazo de pruebas
+src/server.js            Servidor Express, healthcheck y cierre ordenado
+src/configuracion-db.js  Validación de configuración MySQL
+src/security.js          HTTPS, proxy, cookies y CSP
+src/session-store.js     Sesiones persistentes y renovación en MySQL
+src/mailer.js            Envío de códigos por Gmail SMTP con TLS
+src/routes/public.js     GET /api/cafes, POST /api/verificacion, POST /api/votos
 src/routes/admin.js      API del panel (protegida con sesión)
 public/                  Página de votación y panel admin
+test/                    Pruebas unitarias e integración en base temporal
 ```
 
 ## Reglas y seguridad
-- Un voto por correo (restricción `UNIQUE` en la BD y transacción al votar).
+- Un voto por **correo verificado**, no por persona: alguien con varias cuentas podría votar varias veces. Los votos antiguos se conservan; no quedan verificados retroactivamente.
 - Validación de datos en el navegador y en el servidor; consultas parametrizadas.
 - Límite de intentos en votación y login; claves de admin cifradas con bcrypt.
 
+### Actualizar una instalación existente (sin borrar votos)
+
+Detén el servidor, verifica un respaldo, ensaya en una base temporal, actualiza dependencias y ejecuta:
+
+```powershell
+npm install
+npm run migrate-security
+```
+
+La migración agrega `email_challenges` y `admin_sessions` sin borrar participantes, votos, votantes ni administradores. **No uses `replace-participants` para actualizar seguridad.** Los esquemas nuevos ya incluyen estas tablas.
+
+### Secretos y Gmail
+
+1. En `.env`, conserva un `SESSION_SECRET` aleatorio de al menos 32 caracteres y agrega otro secreto **distinto**, `VERIFICATION_SECRET`. Para generar cada uno en tu terminal:
+
+   ```powershell
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+   ```
+
+2. Activa la verificación en dos pasos de tu cuenta Google. En la configuración de seguridad de Google crea una **contraseña de aplicación**; algunas cuentas administradas no permiten hacerlo.
+3. Configura localmente:
+
+   ```dotenv
+   SMTP_USER=tu-cuenta@gmail.com
+   SMTP_PASS=tu-contrasena-de-aplicacion
+   NODE_ENV=development
+   TRUSTED_PROXIES=
+   ```
+
+No uses tu contraseña habitual de Gmail, no compartas estos valores ni subas `.env`. El envío usa `smtp.gmail.com:465` con TLS. Gmail tiene cuotas de envío; verifica que sean suficientes para el evento.
+
+### Cómo se registra un voto
+
+1. Seleccionar bebida y completar nombre, correo y teléfono (ciudad opcional).
+2. Pulsar **Recibir código para votar** y revisar el correo o spam.
+3. Introducir el código de seis dígitos y pulsar **Confirmar y registrar voto**.
+
+El código vence en 10 minutos y admite 5 intentos incorrectos. Un reenvío solo se permite tras 60 segundos, invalida el código anterior y **no reinicia** el plazo ni los intentos del desafío. Tras agotar intentos, esperar el plazo original antes de pedir otro. El voto se registra en una transacción que consume el desafío para evitar reutilización. La ruta antigua sin código ya no acepta votos. El navegador no guarda los datos del formulario en almacenamiento persistente.
+
+Los códigos se almacenan como HMAC con secreto independiente, no como texto. Los desafíos vencidos se eliminan al arrancar y cada hora cuando llevan más de 24 horas vencidos. Las sesiones admin vencen tras 8 horas de inactividad: cada petición con sesión renueva tanto la cookie como su vencimiento en MySQL; las expiradas se eliminan en la misma limpieza. Reiniciar invalida los contadores por IP en memoria; para varias instancias se necesita un almacén compartido para los rate limits. Los límites de intentos y reenvío por correo sí persisten en MySQL.
+
+### Publicación segura
+
+- En producción configurar `NODE_ENV=production` y `PUBLIC_URL=https://tu-dominio`. **Cambiar la variable no instala HTTPS:** el hosting/proxy debe tener un certificado válido y terminar TLS.
+- Configurar `TRUSTED_PROXIES` solo con las IP/CIDR reales del proxy, separadas por comas. Por defecto no se confía en ninguna cabecera reenviada. El proxy debe **sobrescribir** `X-Forwarded-For` y `X-Forwarded-Proto`; el puerto interno de Node no debe ser público. No usar `true`, `1` ni subredes de todo internet. Si tu hosting tiene proxies variables, definir la configuración con su documentación antes de publicar.
+- La app rechaza peticiones HTTP en producción y usa cookies `Secure`, `HttpOnly`, `SameSite=Lax` y HSTS. Localmente permite HTTP para pruebas por Wi-Fi.
+- Usa un usuario MySQL propio de la app con permisos mínimos sobre su base, no `root`. Ejecuta migraciones con una cuenta autorizada a crear tablas; el servidor solo necesita leer/escribir datos.
+- Cambia las contraseñas de prueba y usa una clave admin larga y única. Cambiar `ADMIN_PASS` en `.env` no actualiza la base hasta ejecutar `npm run create-admin`.
+- Protege el acceso a CSV y copias de seguridad. Define un aviso de privacidad, finalidad y plazo de conservación de nombre, correo y teléfono adecuado al evento. No hay borrado automático de votos ni votantes.
+
+### Checklist de Railway (una instancia)
+
+1. Selecciona Node.js 24 o 22 y usa `npm ci` para instalar y `npm start` para arrancar. La app escucha el `PORT` asignado por Railway; no ejecutes scripts destructivos como comandos de despliegue.
+2. Define `NODE_ENV=production`, `PUBLIC_URL` HTTPS, secretos independientes, Gmail y todas las variables MySQL. Faltar una credencial, usar `root` o un puerto inválido impide iniciar en producción. Los defaults de MySQL solo se conservan en desarrollo.
+3. Usa una base separada para staging y un usuario propio con permisos mínimos. Usa la red privada del proveedor entre app y MySQL; si la conexión cruza una red pública, valida/configura TLS de MySQL antes de publicar (esta app no lo activa automáticamente).
+4. Migra manualmente tras respaldo y ensayo, con un usuario autorizado a DDL. Comprueba el esquema antes de arrancar la app; el inicio nunca aplica migraciones.
+5. Configura el healthcheck como `GET /health`. Devuelve 200 si MySQL responde y 503 si falla o se está cerrando. Es la única ruta disponible por HTTP interno en producción, no crea sesiones ni expone diagnósticos; el resto exige HTTPS. El sondeo no prueba Gmail.
+6. Valida `TRUSTED_PROXIES` con la topología real de Railway, sin confiar en todo internet. Prueba que login produzca una cookie `Secure` y que la IP de los límites sea la del cliente, no la del proxy.
+7. El servidor maneja `SIGTERM`/`SIGINT`: deja de aceptar conexiones, espera las peticiones activas y cierra MySQL. Tiene un límite de 10 segundos; agotarlo registra error y termina con código no exitoso. Configura un período de terminación mayor en el hosting.
+8. Prueba en staging: catálogo, código real de Gmail, voto único, reintentos, login/logout, panel, CSV, QR e impresión. La CSP permite recursos propios y bloquea scripts inline y marcos externos.
+9. Mantén una instancia mientras los límites por IP sigan en memoria. Confirma copias recuperables, acceso restringido a CSV y monitoreo de errores/healthcheck.
+
+**Pendiente de decisión del organizador antes de abrir el concurso:** responsable y contacto para los datos, finalidad, aviso visible y plazo de conservación (incluidas IP, CSV y backups). No se inventa una política legal ni se programa borrado automático sin esos requisitos; conservar correos es lo que impide votos repetidos durante el evento.
+
 ## Pruebas
 
-`npm test` comprueba instalación nueva, actualización de la estructura anterior, participantes, CRUD y flujo de votación/CSV. Requiere MySQL/MariaDB y permisos de crear/eliminar una base temporal de pruebas con las credenciales de `.env`; no borra los datos del concurso.
+`npm test` comprueba instalación, actualización, CRUD, correo verificado, vencimiento, intentos, reenvío, concurrencia, errores SMTP, votos, CSV, sesiones MySQL y configuración HTTPS/proxy. El envío se simula por inyección en los tests; no se envían correos reales ni se crea un bypass en producción. Requiere MySQL/MariaDB y permisos de crear/eliminar una base temporal de pruebas con las credenciales de `.env`; no borra los datos del concurso. El envío real por Gmail y el HTTPS público deben validarse al configurar las credenciales y el hosting.
+
+Ejecuta la suite completa únicamente con un servidor MySQL desechable y variables `DB_HOST`, `DB_PORT`, `DB_USER` y `DB_PASS` que apunten a ese servidor. La prueba crea una base `concurso_test_*`, carga datos sintéticos, comprueba preservación y repetición de la migración y elimina solo esa base al terminar; no apuntes la suite a producción.
+
+Para validar sin MySQL ni correo real:
+
+```powershell
+node --test test\server.test.js test\security.test.js test\voter-form.test.js test\admin-ui.test.js
+```

@@ -55,12 +55,41 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     );
     await connection.query('INSERT INTO votos (votante_id, cafe_id) SELECT 1, MIN(id) FROM cafes');
 
-    const env = { ...process.env, DB_NAME: dbName };
+    const env = { ...process.env, DB_NAME: dbName, NODE_ENV: 'test' };
     const refused = spawnSync(process.execPath, ['scripts\\replace-participants.js'], { cwd: root, env });
     assert.equal(refused.status, 1, 'se exige confirmación explícita');
     const [[before]] = await connection.query('SELECT COUNT(*) AS total FROM votos');
     assert.equal(before.total, 1, 'sin confirmación no se borran votos');
-    execFileSync(process.execPath, ['scripts\\replace-participants.js', '--confirm-delete-test-data'], { cwd: root, env });
+    const sinRespaldo = spawnSync(process.execPath, ['scripts\\replace-participants.js', '--confirm-delete-test-data'], { cwd: root, env });
+    assert.equal(sinRespaldo.status, 1, 'se exige respaldo confirmado');
+    const sinMigracion = spawnSync(process.execPath, [
+      'scripts\\replace-participants.js', '--confirm-delete-test-data', '--confirmar-respaldo',
+    ], { cwd: root, env });
+    assert.equal(sinMigracion.status, 1, 'el reemplazo no migra el esquema');
+    const [columnasAntes] = await connection.query("SHOW COLUMNS FROM cafes LIKE 'establecimiento'");
+    assert.equal(columnasAntes.length, 0);
+    const migracionSinRespaldo = spawnSync(process.execPath, ['scripts\\migrate-participants.js'], { cwd: root, env });
+    assert.equal(migracionSinRespaldo.status, 1);
+    const registrosPrevios = {};
+    for (const tabla of ['cafes', 'votantes', 'votos', 'admins']) {
+      [registrosPrevios[tabla]] = await connection.query(`SELECT * FROM ${tabla} ORDER BY id`);
+    }
+    for (let intento = 0; intento < 2; intento++) {
+      execFileSync(process.execPath, ['scripts\\migrate-participants.js', '--confirmar-respaldo'], { cwd: root, env });
+      for (const tabla of Object.keys(registrosPrevios)) {
+        const [registros] = await connection.query(`SELECT * FROM ${tabla} ORDER BY id`);
+        if (tabla === 'cafes') {
+          for (const registro of registros) {
+            assert.equal(registro.establecimiento, '');
+            delete registro.establecimiento;
+          }
+        }
+        assert.deepEqual(registros, registrosPrevios[tabla], `migración repetible conserva todos los datos de ${tabla}`);
+      }
+    }
+    execFileSync(process.execPath, [
+      'scripts\\replace-participants.js', '--confirm-delete-test-data', '--confirmar-respaldo',
+    ], { cwd: root, env });
     assert.deepEqual(await readParticipants(), expected);
     for (const table of ['votos', 'votantes']) {
       const [[row]] = await connection.query(`SELECT COUNT(*) AS total FROM ${table}`);
@@ -71,10 +100,34 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
 
     process.env.DB_NAME = dbName;
     pool = require('../src/db');
+    let clock = Date.now();
+    const sentCodes = new Map();
+    const smtpLogs = [];
+    let smtpFailure = false;
+    const routesOptions = {
+      pool,
+      secret: 'test-verification-secret-32-characters-minimum',
+      now: () => clock,
+      logger: { error: (...args) => smtpLogs.push(args) },
+      sendCode: async (correo, code) => {
+        if (smtpFailure) {
+          const error = new Error('SMTP simulado no disponible: contraseña-sensible');
+          Object.assign(error, { code: 'ESOCKET', command: 'CONN', responseCode: 421, auth: 'secreto' });
+          throw error;
+        }
+        sentCodes.set(correo, code);
+      },
+    };
     const app = express();
     app.use(express.json());
-    app.use(session({ secret: 'integration-test-only', resave: false, saveUninitialized: false }));
-    app.use('/api', require('../src/routes/public'));
+    const MysqlSessionStore = require('../src/session-store');
+    app.use(session({
+      secret: 'integration-test-only', resave: false, saveUninitialized: false,
+      store: new MysqlSessionStore(pool),
+      cookie: { maxAge: 8 * 60 * 60 * 1000 },
+    }));
+    app.use('/api', require('../src/routes/public')(routesOptions));
+    app.use('/checks', require('../src/routes/public')(routesOptions));
     app.use('/admin/api', require('../src/routes/admin'));
     app.use((err, req, res, next) => {
       console.error(err);
@@ -120,9 +173,18 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     assert.equal(response.status, 200);
 
     const voter = { nombre: 'Prueba flujo', correo: 'first@example.com', telefono: '3001234567', ciudad: 'Miranda', cafeId: drinks[0].id };
-    assert.equal((await request('/api/votos', 'POST', voter)).status, 201);
-    assert.equal((await request('/api/votos', 'POST', { ...voter, correo: 'FIRST@example.com' })).status, 409);
-    assert.equal((await request('/api/votos', 'POST', { ...voter, correo: 'second@example.com', cafeId: drinks[1].id })).status, 201);
+    assert.equal((await request('/api/votos', 'POST', voter)).status, 400, 'ruta anterior no permite votos sin código');
+    const verify = async (data) => {
+      clock += 10 * 60 * 1000 + 1;
+      const email = data.correo.trim().toLowerCase();
+      const sent = await request('/api/verificacion', 'POST', { correo: email });
+      assert.equal(sent.status, 200);
+      const challenge = await sent.json();
+      return { ...data, challengeId: challenge.challengeId, codigo: sentCodes.get(email) };
+    };
+    assert.equal((await request('/api/votos', 'POST', await verify(voter))).status, 201);
+    assert.equal((await request('/api/votos', 'POST', await verify({ ...voter, correo: 'FIRST@example.com' }))).status, 409);
+    assert.equal((await request('/api/votos', 'POST', await verify({ ...voter, correo: 'second@example.com', cafeId: drinks[1].id }))).status, 201);
     const results = await (await request('/admin/api/resultados')).json();
     assert.equal(results.total, 2);
     assert.equal(results.cafes.find((r) => r.id === drinks[0].id).establecimiento, expected[0][1]);
@@ -141,10 +203,14 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
       for (const value of [undefined, '   ']) {
         response = await request('/api/votos', 'POST', { ...voter, [field]: value });
         assert.equal(response.status, 400, `${field} es obligatorio`);
+        assert.match((await response.json()).error, new RegExp(
+          { nombre: 'Nombre inválido', correo: 'Correo inválido', telefono: 'Teléfono inválido' }[field]
+        ));
       }
     }
     response = await request('/api/votos', 'POST', { ...voter, correo: 'short@example.com', ciudad: ' A ' });
     assert.equal(response.status, 400, 'ciudad informada exige dos caracteres');
+    assert.match((await response.json()).error, /ciudad debe tener al menos 2/);
     const cityCases = [
       [undefined, ''],
       ['', ''],
@@ -153,7 +219,7 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     ];
     for (const [index, [input, stored]] of cityCases.entries()) {
       const correo = `city-${index}@example.com`;
-      response = await request('/api/votos', 'POST', { ...voter, correo, ciudad: input });
+      response = await request('/api/votos', 'POST', await verify({ ...voter, correo, ciudad: input }));
       assert.equal(response.status, 201, `ciudad opcional: ${String(input)}`);
       const [[saved]] = await connection.query('SELECT ciudad FROM votantes WHERE correo = ?', [correo]);
       assert.equal(saved.ciudad, stored);
@@ -164,14 +230,73 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     const noCityRow = updatedCsv.split('\r\n').find((line) => line.includes('"city-0@example.com"'));
     assert.ok(noCityRow.includes('"3001234567";"";"Brisa Mirandeña"'));
     assert.equal((await (await request('/admin/api/resultados')).json()).total, 6);
+
+    const email = 'security@example.com';
+    const send = () => request('/checks/verificacion', 'POST', { correo: email });
+    response = await send();
+    assert.equal(response.status, 200);
+    let challenge = await response.json();
+    const oldCode = sentCodes.get(email);
+    const [[storedChallenge]] = await connection.query('SELECT code_hash FROM email_challenges WHERE correo = ?', [email]);
+    assert.match(storedChallenge.code_hash, /^[a-f0-9]{64}$/);
+    assert.notEqual(storedChallenge.code_hash, oldCode);
+    assert.equal((await request('/checks/votos', 'POST', {
+      ...voter, correo: 'other@example.com', challengeId: challenge.challengeId, codigo: oldCode,
+    })).status, 400, 'el desafío está vinculado al correo');
+    assert.equal((await send()).status, 429, 'cooldown por correo');
+    const wrongCode = oldCode === '000000' ? '000001' : '000000';
+    const confirm = (codigo, challengeId = challenge.challengeId) => request('/checks/votos', 'POST', {
+      ...voter, correo: email, codigo, challengeId,
+    });
+    assert.equal((await confirm(wrongCode)).status, 400);
+    clock += 60001;
+    const simultaneousResends = await Promise.all([send(), send()]);
+    assert.deepEqual(simultaneousResends.map((r) => r.status).sort(), [200, 429], 'reenvío concurrente limitado');
+    response = simultaneousResends.find((r) => r.status === 200);
+    const resent = await response.json();
+    assert.equal(resent.expiresAt, challenge.expiresAt, 'reenvío no extiende caducidad');
+    assert.notEqual(resent.challengeId, challenge.challengeId);
+    assert.equal((await confirm(oldCode)).status, 400, 'desafío anterior invalidado');
+    challenge = resent;
+    const newCode = sentCodes.get(email);
+    const wrongNew = newCode === '000000' ? '000001' : '000000';
+    for (let i = 0; i < 4; i++) assert.equal((await confirm(wrongNew)).status, 400);
+    assert.equal((await confirm(newCode)).status, 400, 'cinco intentos agotan el desafío');
+    clock += 60001;
+    assert.equal((await send()).status, 429, 'no reiniciar intentos con reenvío');
+    clock += 10 * 60 * 1000;
+    response = await send();
+    assert.equal(response.status, 200);
+    challenge = await response.json();
+    clock += 10 * 60 * 1000;
+    assert.equal((await confirm(sentCodes.get(email))).status, 400, 'código vencido');
+    response = await send();
+    challenge = await response.json();
+    const concurrent = await Promise.all([confirm(sentCodes.get(email)), confirm(sentCodes.get(email))]);
+    assert.deepEqual(concurrent.map((r) => r.status).sort(), [201, 400], 'solo un voto ante concurrencia');
+    assert.equal((await confirm(sentCodes.get(email))).status, 400, 'no reutilizar código consumido');
+    assert.equal((await (await request('/admin/api/resultados')).json()).total, 7);
+    smtpFailure = true;
+    response = await request('/checks/verificacion', 'POST', { correo: 'smtp-fail@example.com' });
+    assert.equal(response.status, 503, 'SMTP fallido no simula éxito');
+    assert.deepEqual(smtpLogs.at(-1), ['Error enviando verificación SMTP:', {
+      name: 'Error', code: 'ESOCKET', command: 'CONN', responseCode: 421,
+    }]);
+    assert.doesNotMatch(JSON.stringify(smtpLogs), /contraseña-sensible|secreto/);
+    const [[failed]] = await connection.query('SELECT COUNT(*) AS total FROM email_challenges WHERE correo = ?', ['smtp-fail@example.com']);
+    assert.equal(failed.total, 0, 'SMTP fallido hace rollback');
+    smtpFailure = false;
     assert.equal((await request(`/admin/api/cafes/${drinks[0].id}`, 'DELETE')).status, 409);
     const qr = await request('/admin/api/qr');
     assert.equal(qr.status, 200);
     assert.equal(qr.headers.get('content-type'), 'image/png');
     await qr.arrayBuffer();
+    const [[savedSession]] = await connection.query('SELECT COUNT(*) AS total FROM admin_sessions');
+    assert.equal(savedSession.total, 1, 'sesión persistida en MySQL');
+    assert.equal((await request('/admin/api/logout', 'POST')).status, 200);
+    assert.equal((await request('/admin/api/me')).status, 401);
   } finally {
     if (server) {
-      server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
     }
     if (pool) await pool.end();

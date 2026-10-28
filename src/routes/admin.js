@@ -15,7 +15,7 @@ const loginLimiter = rateLimit({
   message: { error: 'Demasiados intentos de inicio de sesión, espera unos minutos.' },
 });
 
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', loginLimiter, async (req, res, next) => {
   const { usuario, clave } = req.body || {};
   if (typeof usuario !== 'string' || typeof clave !== 'string') {
     return res.status(400).json({ error: 'Datos incompletos' });
@@ -25,15 +25,16 @@ router.post('/login', loginLimiter, async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Usuario o clave incorrectos' });
 
   req.session.regenerate((err) => {
-    if (err) return res.status(500).json({ error: 'Error de sesión' });
+    if (err) return next(err);
     req.session.adminId = rows[0].id;
     req.session.usuario = usuario;
     res.json({ ok: true });
   });
 });
 
-router.post('/logout', (req, res) => {
-  req.session.destroy(() => {
+router.post('/logout', (req, res, next) => {
+  req.session.destroy((err) => {
+    if (err) return next(err);
     res.clearCookie('cafes.sid');
     res.json({ ok: true });
   });
@@ -117,8 +118,10 @@ router.get('/resultados', async (req, res) => {
   res.json({ total, cafes: rows });
 });
 
+const UNION_VOTANTES = 'FROM votantes vt JOIN votos v ON v.votante_id = vt.id JOIN cafes c ON c.id = v.cafe_id';
+
 const SQL_VOTANTES = `SELECT vt.id, vt.nombre, vt.correo, vt.telefono, vt.ciudad, c.nombre AS cafe, c.establecimiento, v.creado_en AS fecha
-  FROM votantes vt JOIN votos v ON v.votante_id = vt.id JOIN cafes c ON c.id = v.cafe_id
+  ${UNION_VOTANTES}
   ORDER BY v.creado_en DESC, v.id DESC`;
 
 const SQL_VOTANTES_CSV = `SELECT
@@ -131,7 +134,7 @@ const SQL_VOTANTES_CSV = `SELECT
   c.nombre AS cafe,
   c.establecimiento,
   v.creado_en AS fecha
-  FROM votantes vt JOIN votos v ON v.votante_id = vt.id JOIN cafes c ON c.id = v.cafe_id
+  ${UNION_VOTANTES}
   ORDER BY v.creado_en ASC, v.id ASC`;
 
 router.get('/votantes', async (req, res) => {

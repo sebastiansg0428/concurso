@@ -1,6 +1,7 @@
 .admin-bar { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; align-items: center; text-align: left; padding: 1rem 1.25rem; }
 .admin-bar h1 { font-size: 1.3rem; margin: 0; }
 .admin-bar .btn.sec { margin-left: .5rem; }
+.acceso { max-width: 420px; }
 
 .tabs { display: flex; gap: .25rem; background: #fff; border-bottom: 1px solid var(--borde); overflow-x: auto; padding: 0 1rem; }
 .tabs button { background: none; border: 0; padding: .9rem 1rem; font-size: .95rem; cursor: pointer; color: var(--texto); border-bottom: 3px solid transparent; white-space: nowrap; }

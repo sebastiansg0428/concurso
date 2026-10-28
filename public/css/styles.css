@@ -52,12 +52,25 @@ h2 { font-size: 1.15rem; color: var(--cafe-osc); margin: 1.5rem 0 .75rem; }
 }
 .cafe-card input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .cafe-card-icon { display: block; margin-bottom: .75rem; }
+.cafe-card-foto {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #efe5da;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+.cafe-card-foto[hidden] { display: none; }
+.cafe-card .foto-no-disponible { margin-bottom: 1rem; color: var(--error); }
 .cafe-card h3 { margin: 0 0 .4rem; font-size: 1.1rem; color: var(--cafe-osc); overflow-wrap: anywhere; }
 .cafe-card p { margin: 0; font-size: .9rem; color: #5d4d41; font-weight: 400; overflow-wrap: anywhere; }
 .cafe-card .establecimiento { margin-bottom: .5rem; font-weight: 600; color: var(--cafe); }
 .cafe-card::after {
   content: ""; position: absolute; top: 1.25rem; right: 1.25rem;
   border: 2px solid var(--borde); border-radius: 50%;
+  background: #fff;
   width: 1.5rem; height: 1.5rem; display: grid; place-items: center; font-size: .85rem;
 }
 .cafe-card:has(input:checked) {

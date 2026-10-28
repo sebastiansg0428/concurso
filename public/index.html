@@ -89,8 +89,26 @@
         </section>
 
         <div id="mensaje" class="alert" hidden></div>
-        <button id="btn-votar" type="submit" class="btn">Votar</button>
+        <button id="btn-votar" type="submit" class="btn">Recibir código para votar</button>
       </form>
+      <section id="verificacion" hidden aria-labelledby="titulo-verificacion">
+        <h2 id="titulo-verificacion">3. Confirma tu correo y tu voto</h2>
+        <p id="destino-codigo" role="status"></p>
+        <p>El voto se registrará solo al confirmar. El código vence en 10 minutos y admite 5 intentos.</p>
+        <form id="form-codigo">
+          <div class="campo">
+            <label for="codigo">Código de 6 dígitos *</label>
+            <input id="codigo" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code"
+              pattern="[0-9]{6}" minlength="6" maxlength="6" required>
+          </div>
+          <button id="btn-confirmar" type="submit" class="btn">Confirmar y registrar voto</button>
+        </form>
+        <p id="mensaje-codigo" class="alert" role="status" hidden></p>
+        <p>
+          <button id="btn-reenviar" type="button" class="btn sm sec">Reenviar código</button>
+          <button id="btn-corregir" type="button" class="btn sm sec">Volver a mis datos</button>
+        </p>
+      </section>
     </main>
 
     <script src="/js/votar.js"></script>

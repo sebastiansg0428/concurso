@@ -2,22 +2,24 @@ require('dotenv').config({ quiet: true });
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
+const configuracionDb = require('../src/configuracion-db');
 
 (async () => {
-  const dbName = process.env.DB_NAME || 'concurso_cafes';
+  const configuracion = configuracionDb();
+  const dbName = configuracion.database;
   let sql = fs.readFileSync(path.join(__dirname, '..', 'database', 'schema.sql'), 'utf8');
   sql = sql.replaceAll('concurso_cafes', dbName);
 
   const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || '',
+    ...configuracion,
+    database: undefined,
     multipleStatements: true,
-    charset: 'utf8mb4',
   });
-  await conn.query(sql);
-  await conn.end();
+  try {
+    await conn.query(sql);
+  } finally {
+    await conn.end();
+  }
   console.log(`Base de datos "${dbName}" lista.`);
 })().catch((err) => {
   console.error('Error inicializando la base de datos:', err.message);

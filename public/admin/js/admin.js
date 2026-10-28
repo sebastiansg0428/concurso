@@ -1,184 +1,224 @@
-async function api(url, opciones = {}) {
-  const res = await fetch('/admin/api' + url, {
+async function solicitarApi(ruta, opciones = {}) {
+  const respuesta = await fetch('/admin/api' + ruta, {
     headers: { 'Content-Type': 'application/json' },
     ...opciones,
   });
-  if (res.status === 401) {
+  if (respuesta.status === 401) {
     location.href = '/admin/login.html';
     throw new Error('No autorizado');
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Error en la solicitud');
-  return data;
+  const datos = await respuesta.json();
+  if (!respuesta.ok) throw new Error(datos.error || 'Error en la solicitud');
+  return datos;
 }
 
-function el(tag, props = {}, ...hijos) {
-  const e = document.createElement(tag);
-  Object.assign(e, props);
-  e.append(...hijos);
-  return e;
+function crearElemento(etiqueta, propiedades = {}, ...hijos) {
+  const elemento = document.createElement(etiqueta);
+  Object.assign(elemento, propiedades);
+  elemento.append(...hijos);
+  return elemento;
 }
 
 // Pestañas
 const cargadores = { resultados: cargarResultados, votantes: cargarVotantes, cafes: cargarCafes, qr: cargarQR };
-document.querySelectorAll('.tabs button').forEach((b) =>
-  b.addEventListener('click', () => {
-    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('activo', x === b));
-    document.querySelectorAll('.tab').forEach((t) => (t.hidden = t.id !== 'tab-' + b.dataset.tab));
-    cargadores[b.dataset.tab]();
-  })
-);
+const mensajePanel = document.getElementById('mensaje-panel');
+function mostrarErrorPanel(error) {
+  mensajePanel.textContent = `No se pudo completar la operación. ${error.message}`;
+  mensajePanel.hidden = false;
+}
+
+async function cargarPanel(cargador) {
+  mensajePanel.hidden = true;
+  try {
+    await cargador();
+  } catch (error) {
+    mostrarErrorPanel(error);
+  }
+}
+
+const pestanas = [...document.querySelectorAll('.tabs button')];
+function seleccionarPestana(boton) {
+  for (const otra of pestanas) {
+    const activa = otra === boton;
+    otra.classList.toggle('activo', activa);
+    otra.setAttribute('aria-selected', String(activa));
+    otra.tabIndex = activa ? 0 : -1;
+  }
+  document.querySelectorAll('.tab').forEach((panel) => (panel.hidden = panel.id !== 'tab-' + boton.dataset.tab));
+  return cargarPanel(cargadores[boton.dataset.tab]);
+}
+pestanas.forEach((boton, indice) => {
+  boton.addEventListener('click', () => seleccionarPestana(boton));
+  boton.addEventListener('keydown', (evento) => {
+    let destino;
+    if (evento.key === 'ArrowRight') destino = (indice + 1) % pestanas.length;
+    else if (evento.key === 'ArrowLeft') destino = (indice + pestanas.length - 1) % pestanas.length;
+    else if (evento.key === 'Home') destino = 0;
+    else if (evento.key === 'End') destino = pestanas.length - 1;
+    else return;
+    evento.preventDefault();
+    pestanas[destino].focus();
+    seleccionarPestana(pestanas[destino]);
+  });
+});
 
 // Resultados
 async function cargarResultados() {
-  const { total, cafes } = await api('/resultados');
+  const { total, cafes } = await solicitarApi('/resultados');
   document.getElementById('total').textContent = `(${total} voto${total === 1 ? '' : 's'})`;
-  const cont = document.getElementById('resultados');
-  cont.innerHTML = '';
-  const max = Math.max(0, ...cafes.map((c) => Number(c.votos)));
-  for (const c of cafes) {
-    const votos = Number(c.votos);
-    const pct = total ? Math.round((votos / total) * 1000) / 10 : 0;
-    const relleno = el('div', { className: 'relleno' });
-    relleno.style.width = pct + '%';
-    cont.append(
-      el(
+  const contenedor = document.getElementById('resultados');
+  contenedor.innerHTML = '';
+  const maximo = Math.max(0, ...cafes.map((cafe) => Number(cafe.votos)));
+  for (const cafe of cafes) {
+    const votos = Number(cafe.votos);
+    const porcentaje = total ? Math.round((votos / total) * 1000) / 10 : 0;
+    const relleno = crearElemento('div', { className: 'relleno' });
+    relleno.style.width = porcentaje + '%';
+    contenedor.append(
+      crearElemento(
         'div',
-        { className: 'barra' + (votos > 0 && votos === max ? ' lider' : '') },
-        el('div', { className: 'info' },
-          el('strong', { textContent: `${c.nombre} — ${c.establecimiento}` + (c.activo ? '' : ' (inactivo)') }),
-          el('span', { textContent: `${votos} · ${pct}%` })),
-        el('div', { className: 'fondo' }, relleno)
+        { className: 'barra' + (votos > 0 && votos === maximo ? ' lider' : '') },
+        crearElemento('div', { className: 'info' },
+          crearElemento('strong', { textContent: `${cafe.nombre} — ${cafe.establecimiento}` + (cafe.activo ? '' : ' (inactivo)') }),
+          crearElemento('span', { textContent: `${votos} · ${porcentaje}%` })),
+        crearElemento('div', { className: 'fondo' }, relleno)
       )
     );
   }
-  if (!cafes.length) cont.textContent = 'No hay bebidas registradas.';
+  if (!cafes.length) contenedor.textContent = 'No hay bebidas registradas.';
 }
-document.getElementById('btn-refrescar').addEventListener('click', cargarResultados);
+document.getElementById('btn-refrescar').addEventListener('click', () => cargarPanel(cargarResultados));
 
 // Votantes
 let votantes = [];
 async function cargarVotantes() {
-  votantes = await api('/votantes');
+  votantes = await solicitarApi('/votantes');
   pintarVotantes();
 }
 function pintarVotantes() {
-  const q = document.getElementById('buscar').value.trim().toLowerCase();
-  const tbody = document.getElementById('tabla-votantes');
-  tbody.innerHTML = '';
-  const filas = votantes.filter((v) =>
-    !q || [v.nombre, v.correo, v.ciudad, v.cafe, v.establecimiento, v.telefono].some((x) => String(x).toLowerCase().includes(q))
+  const busqueda = document.getElementById('buscar').value.trim().toLowerCase();
+  const cuerpoTabla = document.getElementById('tabla-votantes');
+  cuerpoTabla.innerHTML = '';
+  const filas = votantes.filter((votante) =>
+    !busqueda || [votante.nombre, votante.correo, votante.ciudad, votante.cafe, votante.establecimiento, votante.telefono].some((valor) => String(valor).toLowerCase().includes(busqueda))
   );
-  for (const v of filas) {
-    tbody.append(
-      el('tr', {},
-        el('td', { textContent: new Date(v.fecha).toLocaleString() }),
-        el('td', { textContent: v.nombre }),
-        el('td', { textContent: v.correo }),
-        el('td', { textContent: v.telefono }),
-        el('td', { textContent: v.ciudad }),
-        el('td', { textContent: v.cafe }),
-        el('td', { textContent: v.establecimiento }))
+  for (const votante of filas) {
+    cuerpoTabla.append(
+      crearElemento('tr', {},
+        crearElemento('td', { textContent: new Date(votante.fecha).toLocaleString() }),
+        crearElemento('td', { textContent: votante.nombre }),
+        crearElemento('td', { textContent: votante.correo }),
+        crearElemento('td', { textContent: votante.telefono }),
+        crearElemento('td', { textContent: votante.ciudad }),
+        crearElemento('td', { textContent: votante.cafe }),
+        crearElemento('td', { textContent: votante.establecimiento }))
     );
   }
-  if (!filas.length) tbody.append(el('tr', {}, el('td', { colSpan: 7, textContent: 'Sin registros.' })));
+  if (!filas.length) cuerpoTabla.append(crearElemento('tr', {}, crearElemento('td', { colSpan: 7, textContent: 'Sin registros.' })));
 }
 document.getElementById('buscar').addEventListener('input', pintarVotantes);
 
 // Cafés
-const formCafe = document.getElementById('form-cafe');
-const msgCafes = document.getElementById('msg-cafes');
+const formularioCafe = document.getElementById('form-cafe');
+const mensajeCafes = document.getElementById('msg-cafes');
 
 function aviso(texto, tipo = 'ok') {
-  msgCafes.textContent = texto;
-  msgCafes.className = 'alert ' + tipo;
-  msgCafes.hidden = false;
-  setTimeout(() => (msgCafes.hidden = true), 4000);
+  mensajeCafes.textContent = texto;
+  mensajeCafes.className = 'alert ' + tipo;
+  mensajeCafes.hidden = false;
+  setTimeout(() => (mensajeCafes.hidden = true), 4000);
 }
 
-function resetForm() {
-  formCafe.reset();
+function reiniciarFormulario() {
+  formularioCafe.reset();
   document.getElementById('cafe-id').value = '';
   document.getElementById('cafe-activo').checked = true;
   document.getElementById('titulo-form-cafe').textContent = 'Agregar bebida';
   document.getElementById('btn-cancelar').hidden = true;
 }
-document.getElementById('btn-cancelar').addEventListener('click', resetForm);
+document.getElementById('btn-cancelar').addEventListener('click', reiniciarFormulario);
 
 async function cargarCafes() {
-  const cafes = await api('/cafes');
-  const tbody = document.getElementById('tabla-cafes');
-  tbody.innerHTML = '';
-  for (const c of cafes) {
-    const editar = el('button', { className: 'btn sm sec', textContent: 'Editar' });
+  const cafes = await solicitarApi('/cafes');
+  const cuerpoTabla = document.getElementById('tabla-cafes');
+  cuerpoTabla.innerHTML = '';
+  for (const cafe of cafes) {
+    const editar = crearElemento('button', { className: 'btn sm sec', textContent: 'Editar' });
     editar.onclick = () => {
-      document.getElementById('cafe-id').value = c.id;
-      document.getElementById('cafe-nombre').value = c.nombre;
-      document.getElementById('cafe-establecimiento').value = c.establecimiento;
-      document.getElementById('cafe-descripcion').value = c.descripcion || '';
-      document.getElementById('cafe-activo').checked = !!c.activo;
+      document.getElementById('cafe-id').value = cafe.id;
+      document.getElementById('cafe-nombre').value = cafe.nombre;
+      document.getElementById('cafe-establecimiento').value = cafe.establecimiento;
+      document.getElementById('cafe-descripcion').value = cafe.descripcion || '';
+      document.getElementById('cafe-activo').checked = !!cafe.activo;
       document.getElementById('titulo-form-cafe').textContent = 'Editar bebida';
       document.getElementById('btn-cancelar').hidden = false;
-      formCafe.scrollIntoView({ behavior: 'smooth' });
+      formularioCafe.scrollIntoView({ behavior: 'smooth' });
     };
-    const eliminar = el('button', { className: 'btn sm danger', textContent: 'Eliminar' });
+    const eliminar = crearElemento('button', { className: 'btn sm danger', textContent: 'Eliminar' });
     eliminar.onclick = async () => {
-      if (!confirm(`¿Eliminar "${c.nombre}"?`)) return;
+      if (!confirm(`¿Eliminar "${cafe.nombre}"?`)) return;
       try {
-        await api('/cafes/' + c.id, { method: 'DELETE' });
+        await solicitarApi('/cafes/' + cafe.id, { method: 'DELETE' });
         aviso('Bebida eliminada');
-        cargarCafes();
-      } catch (err) {
-        aviso(err.message, 'error');
+        await cargarCafes();
+      } catch (error) {
+        aviso(error.message, 'error');
       }
     };
-    tbody.append(
-      el('tr', {},
-        el('td', { textContent: c.nombre }),
-        el('td', { textContent: c.establecimiento }),
-        el('td', { textContent: c.descripcion || '' }),
-        el('td', {}, el('span', { className: 'badge ' + (c.activo ? 'on' : 'off'), textContent: c.activo ? 'Activo' : 'Inactivo' })),
-        el('td', { textContent: c.votos }),
-        el('td', {}, editar, eliminar))
+    cuerpoTabla.append(
+      crearElemento('tr', {},
+        crearElemento('td', { textContent: cafe.nombre }),
+        crearElemento('td', { textContent: cafe.establecimiento }),
+        crearElemento('td', { textContent: cafe.descripcion || '' }),
+        crearElemento('td', {}, crearElemento('span', { className: 'badge ' + (cafe.activo ? 'on' : 'off'), textContent: cafe.activo ? 'Activo' : 'Inactivo' })),
+        crearElemento('td', { textContent: cafe.votos }),
+        crearElemento('td', {}, editar, eliminar))
     );
   }
 }
 
-formCafe.addEventListener('submit', async (e) => {
-  e.preventDefault();
+formularioCafe.addEventListener('submit', async (evento) => {
+  evento.preventDefault();
   const id = document.getElementById('cafe-id').value;
-  const body = JSON.stringify({
+  const cuerpoSolicitud = JSON.stringify({
     nombre: document.getElementById('cafe-nombre').value,
     establecimiento: document.getElementById('cafe-establecimiento').value,
     descripcion: document.getElementById('cafe-descripcion').value,
     activo: document.getElementById('cafe-activo').checked,
   });
   try {
-    await api(id ? '/cafes/' + id : '/cafes', { method: id ? 'PUT' : 'POST', body });
+    await solicitarApi(id ? '/cafes/' + id : '/cafes', { method: id ? 'PUT' : 'POST', body: cuerpoSolicitud });
     aviso(id ? 'Bebida actualizada' : 'Bebida agregada');
-    resetForm();
-    cargarCafes();
-  } catch (err) {
-    aviso(err.message, 'error');
+    reiniciarFormulario();
+    await cargarCafes();
+  } catch (error) {
+    aviso(error.message, 'error');
   }
 });
 
 // QR
 async function cargarQR() {
-  const { url } = await api('/qr-info');
-  const a = document.getElementById('qr-url');
-  a.href = url;
-  a.textContent = url;
+  const { url: direccion } = await solicitarApi('/qr-info');
+  const enlaceQR = document.getElementById('qr-url');
+  enlaceQR.href = direccion;
+  enlaceQR.textContent = direccion;
   document.getElementById('qr-img').src = '/admin/api/qr?t=' + Date.now();
 }
+document.getElementById('qr-img').addEventListener('error', () =>
+  mostrarErrorPanel(new Error('No se pudo cargar el código QR. Vuelve a abrir la pestaña.')));
+document.getElementById('btn-imprimir').addEventListener('click', () => window.print());
 
 // Sesión
 document.getElementById('btn-salir').addEventListener('click', async () => {
-  await fetch('/admin/api/logout', { method: 'POST' });
-  location.href = '/admin/login.html';
+  try {
+    await solicitarApi('/logout', { method: 'POST' });
+    location.href = '/admin/login.html';
+  } catch (error) {
+    mostrarErrorPanel(error);
+  }
 });
 
-api('/me').then(({ usuario }) => {
+solicitarApi('/me').then(({ usuario }) => {
   document.getElementById('usuario').textContent = usuario;
-  cargarResultados();
-});
+  return cargarResultados();
+}).catch(mostrarErrorPanel);
