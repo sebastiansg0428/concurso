@@ -130,7 +130,7 @@ src/server.js            Servidor Express, healthcheck y cierre ordenado
 src/configuracion-db.js  Validación de configuración MySQL
 src/security.js          HTTPS, proxy, cookies y CSP
 src/session-store.js     Sesiones persistentes y renovación en MySQL
-src/mailer.js            Envío de códigos por Gmail SMTP con TLS
+src/mailer.js            Envío de códigos por la API de Brevo o Gmail SMTP con TLS
 src/routes/public.js     GET /api/cafes, POST /api/verificacion, POST /api/votos
 src/routes/admin.js      API del panel (protegida con sesión)
 public/                  Página de votación y panel admin
@@ -174,6 +174,17 @@ La migración agrega `email_challenges` y `admin_sessions` sin borrar participan
 
 No uses tu contraseña habitual de Gmail, no compartas estos valores ni subas `.env`. El envío usa `smtp.gmail.com:465` con TLS. Gmail tiene cuotas de envío; verifica que sean suficientes para el evento.
 
+### Envío por Brevo (Railway Hobby)
+
+Railway bloquea SMTP (puertos 25, 465 y 587) en los planes Free, Trial y Hobby, así que en Railway el código se envía con la API HTTPS de [Brevo](https://www.brevo.com) (plan gratuito: 300 correos al día). Si `BREVO_API_KEY` está definida, la app usa Brevo; si no, usa Gmail SMTP.
+
+1. Crea una cuenta gratuita en Brevo.
+2. En **Senders, Domains & Dedicated IPs → Senders**, agrega tu correo Gmail como remitente y confírmalo con el enlace que te llega.
+3. En **SMTP & API → API Keys**, crea una clave (empieza por `xkeysib-`). Cópiala: solo se muestra una vez.
+4. En Railway, servicio de la app → **Variables**, agrega `BREVO_API_KEY` con esa clave y `CORREO_REMITENTE` con el Gmail verificado. Despliega los cambios.
+
+Los remitentes `@gmail.com` sin dominio propio pueden llegar a spam; avisa a los votantes que revisen esa carpeta.
+
 ### Cómo se registra un voto
 
 1. Seleccionar bebida y completar nombre, correo y teléfono (ciudad opcional).
@@ -203,7 +214,7 @@ Los códigos se almacenan como HMAC con secreto independiente, no como texto. Lo
 ### Checklist de Railway (una instancia)
 
 1. Selecciona Node.js 24 o 22 y usa `npm ci` para instalar y `npm start` para arrancar. La app escucha el `PORT` asignado por Railway; no ejecutes scripts destructivos como comandos de despliegue.
-2. Define `NODE_ENV=production`, `PUBLIC_URL` HTTPS, secretos independientes, Gmail y todas las variables MySQL. Faltar una credencial, usar `root` o un puerto inválido impide iniciar en producción. Los defaults de MySQL solo se conservan en desarrollo.
+2. Define `NODE_ENV=production`, `PUBLIC_URL` HTTPS, secretos independientes, correo (en Railway Hobby, `BREVO_API_KEY` y `CORREO_REMITENTE`) y todas las variables MySQL. Faltar una credencial, usar `root` o un puerto inválido impide iniciar en producción. Los defaults de MySQL solo se conservan en desarrollo.
 3. Usa una base separada para staging y un usuario propio con permisos mínimos. Usa la red privada del proveedor entre app y MySQL; si la conexión cruza una red pública, valida/configura TLS de MySQL antes de publicar (esta app no lo activa automáticamente).
 4. Migra manualmente tras respaldo y ensayo, con un usuario autorizado a DDL. Comprueba el esquema antes de arrancar la app; el inicio nunca aplica migraciones.
 5. Configura el healthcheck como `GET /health`. Devuelve 200 si MySQL responde y 503 si falla o se está cerrando. Es la única ruta disponible por HTTP interno en producción, no crea sesiones ni expone diagnósticos; el resto exige HTTPS. El sondeo no prueba Gmail.

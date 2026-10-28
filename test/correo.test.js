@@ -42,6 +42,30 @@ test('mailer envía a un objeto de dirección y rechaza destinatarios no válido
   }
 });
 
+test('mailer usa la API HTTPS de Brevo cuando hay BREVO_API_KEY', async () => {
+  const createMailer = require('../src/mailer');
+  const llamadas = [];
+  let estado = 201;
+  const fetchFalso = async (url, opciones) => { llamadas.push({ url, opciones }); return { ok: estado < 300, status: estado }; };
+  const enviar = createMailer({ BREVO_API_KEY: ' clave-prueba ', CORREO_REMITENTE: 'remitente@example.com', SMTP_PASS: '' }, { fetch: fetchFalso });
+  await enviar(' ana@example.com ', '123456');
+  assert.equal(llamadas[0].url, 'https://api.brevo.com/v3/smtp/email');
+  assert.equal(llamadas[0].opciones.headers['api-key'], 'clave-prueba');
+  const cuerpo = JSON.parse(llamadas[0].opciones.body);
+  assert.deepEqual(cuerpo.to, [{ email: 'ana@example.com' }]);
+  assert.equal(cuerpo.sender.email, 'remitente@example.com');
+  assert.match(cuerpo.textContent, /123456/);
+  await assert.rejects(enviar('x<otro@example.com>', '123456'), /Destinatario/);
+  assert.equal(llamadas.length, 1);
+  estado = 401;
+  await assert.rejects(enviar('ana@example.com', '123456'), /HTTP 401/);
+  const conSmtpUser = createMailer({ BREVO_API_KEY: 'k', SMTP_USER: 'gmail@example.com' }, { fetch: fetchFalso });
+  estado = 201;
+  await conSmtpUser('ana@example.com', '1');
+  assert.equal(JSON.parse(llamadas.at(-1).opciones.body).sender.email, 'gmail@example.com');
+  assert.throws(() => createMailer({ BREVO_API_KEY: 'k' }), /CORREO_REMITENTE/);
+});
+
 test('tope global diario de correos de verificación', async () => {
   let reloj = 1_000_000;
   const enviados = [];
