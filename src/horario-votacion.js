@@ -1,7 +1,8 @@
 const CALENDARIO = {
-  inicio: Date.parse('2026-10-28T15:25:00-05:00'),
-  fin: Date.parse('2026-10-28T15:45:00-05:00'),
-  ensayo: true,
+  inicio: Date.parse('2026-11-01T09:00:00-05:00'),
+  // Incluye todo el ultimo minuto del 14 de noviembre, hora de Colombia.
+  fin: Date.parse('2026-11-15T00:00:00-05:00'),
+  ensayo: false,
 };
 
 function crearHorarioVotacion(env = {}, calendario = CALENDARIO) {

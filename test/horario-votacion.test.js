@@ -14,14 +14,14 @@ const calendarioOficial = { inicio, fin, ensayo: false };
 const crearHorarioVotacion = (env = {}, calendario = calendarioOficial) => crearHorarioPublicado(env, calendario);
 const secreto = 'secreto-de-verificacion-para-horario-de-prueba';
 
-test('calendario publicado corresponde al ensayo autorizado y cierra sin excepcion', () => {
+test('calendario publicado corresponde al concurso oficial y cierra sin excepcion', () => {
   const horario = crearHorarioPublicado({ NODE_ENV: 'production' });
-  const apertura = Date.parse('2026-10-28T15:25:00-05:00');
-  const cierre = Date.parse('2026-10-28T15:45:00-05:00');
+  const apertura = inicio;
+  const cierre = fin;
   assert.equal(horario(apertura - 1).permiteVotar, false);
   assert.equal(horario(apertura).permiteVotar, true);
   assert.equal(horario(cierre).permiteVotar, false);
-  assert.equal(horario(apertura).ensayo, true);
+  assert.equal(horario(apertura).ensayo, false);
   assert.equal(horario(apertura).pruebasLocales, false);
   assert.equal(horario(apertura).inicio, apertura);
   assert.equal(horario(apertura).fin, cierre);
