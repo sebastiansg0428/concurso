@@ -194,6 +194,27 @@ Los códigos se almacenan como HMAC con secreto independiente, no como texto. Lo
 8. Prueba en staging: catálogo, código real de Gmail, voto único, reintentos, login/logout, panel, CSV, QR e impresión. La CSP permite recursos propios y bloquea scripts inline y marcos externos.
 9. Mantén una instancia mientras los límites por IP sigan en memoria. Confirma copias recuperables, acceso restringido a CSV y monitoreo de errores/healthcheck.
 
+### Preparar la base MySQL de Railway desde tu PC
+
+El MySQL de Railway solo trae el usuario `root`, que la app rechaza en producción. Prepara la base una vez desde tu PC con `root` y crea un usuario propio para la app:
+
+1. En el servicio **MySQL** de Railway → **Variables**, copia `MYSQLPASSWORD` y, de `MYSQL_PUBLIC_URL`, el host y el puerto públicos (`...proxy.rlwy.net:NNNNN`).
+2. En PowerShell, dentro del proyecto (las variables solo duran en esa ventana; reemplaza los valores entre `<>`):
+
+   ```powershell
+   $env:DB_HOST="<host público>"; $env:DB_PORT="<puerto público>"
+   $env:DB_USER="root"; $env:DB_PASS="<MYSQLPASSWORD>"; $env:DB_NAME="railway"
+   node scripts\init-db.js
+   $env:USUARIO_APP="concurso_app"; $env:CLAVE_USUARIO_APP="<clave larga, mínimo 16>"
+   node scripts\crear-usuario-app.js
+   $env:ADMIN_USER="<usuario panel>"; $env:ADMIN_PASS="<clave panel>"
+   node scripts\create-admin.js
+   ```
+
+   `crear-usuario-app` concede solo `SELECT, INSERT, UPDATE, DELETE` sobre la base; repetirlo actualiza la clave.
+3. En el servicio web usa `DB_HOST=${{MySQL.MYSQLHOST}}`, `DB_PORT=${{MySQL.MYSQLPORT}}`, `DB_NAME=${{MySQL.MYSQLDATABASE}}`, `DB_USER=concurso_app` y `DB_PASS=<clave del paso 2>`. Así la app usa la red privada de Railway.
+4. Cierra esa ventana de PowerShell al terminar para descartar las credenciales.
+
 **Pendiente de decisión del organizador antes de abrir el concurso:** responsable y contacto para los datos, finalidad, aviso visible y plazo de conservación (incluidas IP, CSV y backups). No se inventa una política legal ni se programa borrado automático sin esos requisitos; conservar correos es lo que impide votos repetidos durante el evento.
 
 ## Pruebas
