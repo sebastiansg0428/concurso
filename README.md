@@ -88,6 +88,24 @@ El reemplazo de datos se hace en una transacción. Los cuatro participantes vuel
 
 Si un navegador usado en las pruebas conserva el aviso de «ya votaste», abre su consola en la página de votación y ejecuta `localStorage.removeItem('cafes_voto')`, luego recarga. Esto solo quita la marca visual de ese navegador; la restricción real de votos está en MySQL.
 
+## Reiniciar los IDs para un concurso nuevo
+
+Para empezar los IDs de votos y votantes desde 1, este comando elimina **todos los votos y votantes actuales**. Conserva los cafés y las cuentas de administrador. No se puede reiniciar el siguiente ID a 1 mientras existan registros, y los IDs del CSV son los de la base de datos.
+
+Detén el servidor, verifica una copia de seguridad y ensaya primero en una base temporal representativa. Úsalo solo antes de iniciar un concurso nuevo; no durante la votación:
+
+```powershell
+npm.cmd run reiniciar-votos -- --confirmar-eliminacion --confirmar-respaldo
+```
+
+En Railway, ejecútalo desde tu PC con las mismas variables temporales de `root` que se usan para `init-db` (ver «Preparar la base MySQL de Railway desde tu PC»), porque reiniciar `AUTO_INCREMENT` requiere permiso `ALTER`, y el usuario de la app (`concurso_app`) no lo tiene:
+
+```powershell
+node scripts\reiniciar-votos.js --confirmar-eliminacion --confirmar-respaldo
+```
+
+Ambas confirmaciones son obligatorias. La eliminación de los datos se realiza en una transacción y luego se reinician los contadores `AUTO_INCREMENT` de `votos` y `votantes`. Exporta de nuevo el CSV para ver los nuevos registros. El comando no se ejecuta al iniciar la aplicación.
+
 ## Uso
 - **Votación:** http://localhost:3000
 - **Panel admin:** http://localhost:3000/admin/

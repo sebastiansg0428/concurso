@@ -342,6 +342,36 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
     assert.equal(savedSession.total, 1, 'sesión persistida en MySQL');
     assert.equal((await request('/admin/api/logout', 'POST')).status, 200);
     assert.equal((await request('/admin/api/me')).status, 401);
+
+    const ejecucionReinicio = (...args) => spawnSync(
+      process.execPath, ['scripts\\reiniciar-votos.js', ...args], { cwd: root, env }
+    );
+    const sinConfirmacionReinicio = ejecucionReinicio();
+    assert.equal(sinConfirmacionReinicio.status, 1, 'el reinicio exige confirmar eliminación');
+    const [[votosAntesReinicio]] = await connection.query('SELECT COUNT(*) AS total FROM votos');
+    assert.ok(votosAntesReinicio.total > 0, 'sin confirmación conserva los votos');
+    assert.equal(ejecucionReinicio('--confirmar-eliminacion').status, 1, 'el reinicio exige confirmar respaldo');
+    assert.ok((await connection.query('SELECT COUNT(*) AS total FROM votos'))[0][0].total > 0,
+      'sin respaldo confirmado conserva los votos');
+
+    execFileSync(process.execPath, [
+      'scripts\\reiniciar-votos.js', '--confirmar-eliminacion', '--confirmar-respaldo',
+    ], { cwd: root, env });
+    for (const table of ['votos', 'votantes']) {
+      const [[{ total }]] = await connection.query(`SELECT COUNT(*) AS total FROM ${table}`);
+      assert.equal(total, 0, `${table} queda vacía`);
+    }
+    assert.equal((await connection.query('SELECT COUNT(*) AS total FROM cafes'))[0][0].total, 4,
+      'conserva los cafés');
+    assert.equal((await connection.query('SELECT COUNT(*) AS total FROM admins'))[0][0].total, 1,
+      'conserva los administradores');
+    const [primerVotante] = await connection.query(
+      'INSERT INTO votantes (nombre, correo, correo_canonico, telefono, ciudad) VALUES (?, ?, ?, ?, ?)',
+      ['Votante nuevo', 'nuevo@example.com', 'nuevo@example.com', '3001234567', 'Miranda']
+    );
+    assert.equal(primerVotante.insertId, 1, 'el ID del primer votante vuelve a 1');
+    const [primerVoto] = await connection.query('INSERT INTO votos (votante_id, cafe_id) VALUES (?, ?)', [1, 1]);
+    assert.equal(primerVoto.insertId, 1, 'el ID del primer voto vuelve a 1');
   } finally {
     if (server) {
       await new Promise((resolve) => server.close(resolve));
