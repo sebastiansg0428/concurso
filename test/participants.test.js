@@ -144,6 +144,11 @@ test('participantes: instalación, actualización, CRUD, votos y CSV', async () 
       pool,
       secret: 'test-verification-secret-32-characters-minimum',
       now: () => clock,
+      horario: require('../src/horario-votacion').crearHorarioVotacion({}, {
+        inicio: Date.parse('2026-11-01T09:00:00-05:00'),
+        fin: Date.parse('2026-11-15T00:00:00-05:00'),
+        ensayo: false,
+      }),
       logger: { error: (...args) => smtpLogs.push(args) },
       sendCode: async (correo, code) => {
         if (smtpFailure) {

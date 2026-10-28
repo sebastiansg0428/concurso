@@ -5,12 +5,27 @@ const { createHmac } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { crearHorarioVotacion, mensajeHorario } = require('../src/horario-votacion');
+const { crearHorarioVotacion: crearHorarioPublicado, mensajeHorario } = require('../src/horario-votacion');
 const crearRutasPublicas = require('../src/routes/public');
 
 const inicio = Date.parse('2026-11-01T09:00:00-05:00');
 const fin = Date.parse('2026-11-15T00:00:00-05:00');
+const calendarioOficial = { inicio, fin, ensayo: false };
+const crearHorarioVotacion = (env = {}, calendario = calendarioOficial) => crearHorarioPublicado(env, calendario);
 const secreto = 'secreto-de-verificacion-para-horario-de-prueba';
+
+test('calendario publicado corresponde al ensayo autorizado y cierra sin excepcion', () => {
+  const horario = crearHorarioPublicado({ NODE_ENV: 'production' });
+  const apertura = Date.parse('2026-10-28T15:25:00-05:00');
+  const cierre = Date.parse('2026-10-28T15:45:00-05:00');
+  assert.equal(horario(apertura - 1).permiteVotar, false);
+  assert.equal(horario(apertura).permiteVotar, true);
+  assert.equal(horario(cierre).permiteVotar, false);
+  assert.equal(horario(apertura).ensayo, true);
+  assert.equal(horario(apertura).pruebasLocales, false);
+  assert.equal(horario(apertura).inicio, apertura);
+  assert.equal(horario(apertura).fin, cierre);
+});
 
 test('horario: apertura inclusiva y cierre al finalizar todo el minuto 23:59 de Colombia', () => {
   const horario = crearHorarioVotacion();
@@ -76,7 +91,7 @@ test('excepcion solo explicita en development; produccion nunca acepta la opcion
 async function servir(opciones, probar) {
   const app = express();
   app.use(express.json());
-  app.use('/api', crearRutasPublicas({ secret: secreto, ...opciones }));
+  app.use('/api', crearRutasPublicas({ secret: secreto, horario: crearHorarioVotacion(), ...opciones }));
   const servidor = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => servidor.once('listening', resolve));
   const base = `http://127.0.0.1:${servidor.address().port}/api`;

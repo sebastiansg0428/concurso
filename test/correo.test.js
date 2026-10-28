@@ -83,6 +83,11 @@ test('tope global diario de correos de verificación', async () => {
     pool: { getConnection: async () => conexion },
     secret: 'x'.repeat(32),
     now: () => reloj,
+    horario: require('../src/horario-votacion').crearHorarioVotacion({}, {
+      inicio: Date.parse('2026-11-01T09:00:00-05:00'),
+      fin: Date.parse('2026-11-15T00:00:00-05:00'),
+      ensayo: false,
+    }),
     logger: { error: (...args) => errores.push(args) },
     limiteCorreosPorDia: 2,
     sendCode: async (correo) => {
